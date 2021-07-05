@@ -10,24 +10,26 @@ from src.snapconfig import config
 
 #adding useless comment
 class Net(nn.Module):
-    def __init__(self, embedding_dim=512):
+    def __init__(self):
         super(Net, self).__init__()
         self.spec_size = config.get_config(section='input', key='spec_size')
         self.charge = config.get_config(section='input', key='charge')
         self.max_spec_len = config.get_config(section='ml', key='max_spec_len')
         self.max_pep_len = config.get_config(section='ml', key='max_pep_len')
         self.min_pep_len = config.get_config(section='ml', key='min_pep_len')
+        self.embedding_dim = config.get_config(section='ml', key='embedding_dim')
+        self.num_encoder_layers = config.get_config(section='ml', key='encoder_layers')
+        self.num_heads = config.get_config(section='ml', key='num_heads')
         do = config.get_config(section="ml", key="dropout")
-        self.embedding_dim = embedding_dim
         
         ################### Spectra branch ###################
-        self.spec_embedder = nn.Embedding(self.spec_size, embedding_dim)
-        self.spec_pos_encoder = PositionalEncoding(embedding_dim, dropout=do, max_len=self.max_spec_len)
-        encoder_layers = nn.TransformerEncoderLayer(embedding_dim, nhead=8, dropout=do, batch_first=True)
-        self.encoder = nn.TransformerEncoder(encoder_layers, num_layers=1)
-        self.bn1 = nn.BatchNorm1d(num_features=embedding_dim * self.max_spec_len)
+        self.spec_embedder = nn.Embedding(self.spec_size, self.embedding_dim)
+        self.spec_pos_encoder = PositionalEncoding(self.embedding_dim, dropout=do, max_len=self.max_spec_len)
+        encoder_layers = nn.TransformerEncoderLayer(self.embedding_dim, nhead=self.num_heads, dropout=do, batch_first=True)
+        self.encoder = nn.TransformerEncoder(encoder_layers, num_layers=self.num_encoder_layers)
+        self.bn1 = nn.BatchNorm1d(num_features=self.embedding_dim * self.max_spec_len)
 
-        self.linear1_1 = nn.Linear(embedding_dim * self.max_spec_len, 1024)
+        self.linear1_1 = nn.Linear(self.embedding_dim * self.max_spec_len, 1024)
         self.bn2 = nn.BatchNorm1d(num_features=1024)
         
         self.linear1_2 = nn.Linear(1024, 256)

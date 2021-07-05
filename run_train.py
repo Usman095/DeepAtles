@@ -61,6 +61,8 @@ def run_par(rank, world_size):
     num_epochs = config.get_config(section='ml', key='epochs')
     weight_decay = config.get_config(section='ml', key='weight_decay')
     embedding_dim = config.get_config(section='ml', key='embedding_dim')
+    encoder_layers = config.get_config(section='ml', key='encoder_layers')
+    num_heads = config.get_config(section='ml', key='num_heads')
     dropout = config.get_config(section='ml', key='dropout')
 
     if rank == 0:
@@ -68,6 +70,8 @@ def run_par(rank, world_size):
         print("Learning Rate: {}".format(lr))
         print("Weigh Decay: {}".format(weight_decay))
         print("Embedding Dim: {}".format(embedding_dim))
+        print("Encoder Layers: {}".format(encoder_layers))
+        print("Heads: {}".format(num_heads))
         print("Dropout: {}".format(dropout))
 
     cross_entropy_loss = nn.CrossEntropyLoss(reduction="mean")
@@ -75,7 +79,7 @@ def run_par(rank, world_size):
     if torch.cuda.is_available():
         torch.cuda.set_device(rank)
 
-    model_ = model.Net(embedding_dim=embedding_dim).to(rank)
+    model_ = model.Net().to(rank)
     for p in model_.parameters():
         if p.dim() > 1:
             nn.init.xavier_uniform_(p)

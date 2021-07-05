@@ -39,6 +39,7 @@ def train(model, device, train_loader, cross_entropy_loss, optimizer, epoch):
         data[0] = data[0].to(device) # mzs
         data[1] = data[1].to(device) # ints
         data[2] = data[2].to(device) # lens
+        
         optimizer.zero_grad()
 
         input_mask = data[0] == 0
@@ -50,7 +51,7 @@ def train(model, device, train_loader, cross_entropy_loss, optimizer, epoch):
         with amp.scale_loss(loss, optimizer) as scaled_loss:
             scaled_loss.backward()
         
-        nn.utils.clip_grad_norm_(model.parameters(), 0.5)
+        nn.utils.clip_grad_norm_(model.parameters(), 5)
         
         optimizer.step()
 
