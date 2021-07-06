@@ -31,13 +31,13 @@ class Net(nn.Module):
 
         # self.linear1_1 = nn.Linear(self.embedding_dim * self.max_spec_len, 1024)
         self.linear1_1 = nn.Linear(self.spec_size, 1024)
-        self.bn1 = nn.BatchNorm1d(num_features=1024)
+        # self.bn1 = nn.BatchNorm1d(num_features=1024)
         
         self.linear1_2 = nn.Linear(1024, 512)
-        self.bn2 = nn.BatchNorm1d(num_features=512)
+        # self.bn2 = nn.BatchNorm1d(num_features=512)
 
         self.linear1_3 = nn.Linear(512, 256)
-        self.bn3 = nn.BatchNorm1d(num_features=256)
+        # self.bn3 = nn.BatchNorm1d(num_features=256)
 
         self.linear_out = nn.Linear(256, self.max_pep_len - self.min_pep_len)
 
@@ -51,13 +51,13 @@ class Net(nn.Module):
         # out = self.encoder(data, src_key_padding_mask=mask)
         
         # out = F.relu(self.bn2(self.linear1_1(out.view(-1, self.embedding_dim * self.max_spec_len))))
-        out = F.relu(self.bn1(self.linear1_1(data.view(-1, self.spec_size))))
+        out = F.relu((self.linear1_1(data.view(-1, self.spec_size))))
         out = self.dropout(out)
 
-        out = F.relu(self.bn2(self.linear1_2(out)))
+        out = F.relu((self.linear1_2(out)))
         out = self.dropout(out)
 
-        out = F.relu(self.bn3(self.linear1_3(out)))
+        out = F.relu((self.linear1_3(out)))
         out = self.dropout(out)
 
         out = self.linear_out(out)

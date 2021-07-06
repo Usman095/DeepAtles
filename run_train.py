@@ -52,7 +52,7 @@ def run_par(rank, world_size):
     weighted_sampler = WeightedRandomSampler(weights=weights_all, num_samples=len(weights_all), replacement=True)
     train_loader = torch.utils.data.DataLoader(
         dataset=train_dataset, num_workers=0, collate_fn=psm_collate,
-        batch_size=batch_size, sampler=weighted_sampler
+        batch_size=batch_size, shuffle=True
     )
 
     val_loader = torch.utils.data.DataLoader(
@@ -77,7 +77,7 @@ def run_par(rank, world_size):
         print("Heads: {}".format(num_heads))
         print("Dropout: {}".format(dropout))
 
-    cross_entropy_loss = nn.CrossEntropyLoss(reduction="sum")
+    cross_entropy_loss = nn.CrossEntropyLoss(reduction="mean")
     # device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     if torch.cuda.is_available():
         torch.cuda.set_device(rank)
@@ -90,7 +90,7 @@ def run_par(rank, world_size):
     optimizer = optim.Adam(model_.parameters(), lr=lr, weight_decay=weight_decay)
     model_, optimizer = apex.amp.initialize(model_, optimizer, opt_level="O2")
     model_ = apex.parallel.DistributedDataParallel(model_)
-    model_.load_state_dict(torch.load("./models/attn-2-108.pt")["model_state_dict"])
+    # model_.load_state_dict(torch.load("./models/attn-2-108.pt")["model_state_dict"])
 
     # wandb.watch(model_)
     for epoch in range(num_epochs):
