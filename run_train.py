@@ -18,6 +18,7 @@ import torch.optim as optim
 from torch.utils.data import BatchSampler
 from sklearn.model_selection import train_test_split
 import apex
+from torch.utils.data.sampler import WeightedRandomSampler
 import wandb
 torch.manual_seed(1)
 
@@ -47,14 +48,16 @@ def run_par(rank, world_size):
     train_dataset = dataset.SpectraDataset(join(prep_dir, 'train_specs.pkl'))
     val_dataset  = dataset.SpectraDataset(join(prep_dir, 'val_specs.pkl'))
 
+    weights_all = train_dataset.class_weights_all
+    weighted_sampler = WeightedRandomSampler(weights=weights_all, num_samples=len(weights_all), replacement=True)
     train_loader = torch.utils.data.DataLoader(
         dataset=train_dataset, num_workers=0, collate_fn=psm_collate,
-        batch_size=batch_size, shuffle=True
+        batch_size=batch_size, sampler=weighted_sampler
     )
 
     val_loader = torch.utils.data.DataLoader(
         dataset=val_dataset, num_workers=0, collate_fn=psm_collate,
-        batch_size=batch_size, shuffle=True
+        batch_size=batch_size, shuffle=False
     )
 
     lr = config.get_config(section='ml', key='lr')
@@ -74,7 +77,7 @@ def run_par(rank, world_size):
         print("Heads: {}".format(num_heads))
         print("Dropout: {}".format(dropout))
 
-    cross_entropy_loss = nn.CrossEntropyLoss(reduction="mean")
+    cross_entropy_loss = nn.CrossEntropyLoss(reduction="sum")
     # device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     if torch.cuda.is_available():
         torch.cuda.set_device(rank)
@@ -87,7 +90,7 @@ def run_par(rank, world_size):
     optimizer = optim.Adam(model_.parameters(), lr=lr, weight_decay=weight_decay)
     model_, optimizer = apex.amp.initialize(model_, optimizer, opt_level="O2")
     model_ = apex.parallel.DistributedDataParallel(model_)
-    # model_.load_state_dict(torch.load("models/hcd/512-embed-2-lstm-SnapLoss3Dadd-80k-nist-massive-semi-spc-r2-1.pt")["model_state_dict"])
+    model_.load_state_dict(torch.load("./models/attn-2-108.pt")["model_state_dict"])
 
     # wandb.watch(model_)
     for epoch in range(num_epochs):
@@ -147,10 +150,10 @@ def apply_filter(filt, file_name):
 
 
 def psm_collate(batch):
-    mzs = torch.LongTensor([item[0] for item in batch])
-    ints = torch.LongTensor([item[1] for item in batch])
-    lens = torch.LongTensor([item[2] for item in batch])
-    return [mzs, ints, lens]
+    specs = torch.cat([item[0] for item in batch], 0)
+    lens = torch.LongTensor([item[1] for item in batch])
+    # lens = torch.LongTensor([item[2] for item in batch])
+    return [specs, lens]
 
 # drop_prob=0.5
 # print(vocab_size)

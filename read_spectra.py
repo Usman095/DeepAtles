@@ -110,6 +110,7 @@ def preprocess_mgfs(mgf_dir, out_dir):
     N = 0
 
     spec_out = []
+    len_out = []
     
     tot_count = 0
     max_peaks = max_moz = max_missed_cleavs = 0
@@ -236,6 +237,7 @@ def preprocess_mgfs(mgf_dir, out_dir):
                     
                 assert len(ind) == len(val)
                 spec_out.append([ind, val, pep_len - min_pep_len, l_charge, int(num_mods > 0), missed_cleavs])
+                len_out.append(pep_len - min_pep_len)
 
                 is_name = True
 
@@ -259,8 +261,8 @@ def preprocess_mgfs(mgf_dir, out_dir):
         print('max moz: ' + str(max_moz))
     
 
-    train_val_spec_out, test_spec_out = train_test_split(spec_out, test_size=0.1, random_state=37, shuffle=True)
-    train_spec_out, val_spec_out = train_test_split(train_val_spec_out, test_size=0.2, random_state=37, shuffle=True)
+    train_val_spec_out, test_spec_out, train_val_len_out, test_len_out = train_test_split(spec_out, len_out, test_size=0.1, stratify=len_out, random_state=37, shuffle=True)
+    train_spec_out, val_spec_out, train_len_out, val_len_out = train_test_split(train_val_spec_out, train_val_len_out, test_size=0.2, stratify=train_val_len_out, random_state=79, shuffle=True)
     with open(join(out_dir, 'train_specs.pkl'), 'wb') as f:
         pickle.dump(train_spec_out, f)
     with open(join(out_dir, 'val_specs.pkl'), 'wb') as f:
@@ -277,6 +279,16 @@ def preprocess_mgfs(mgf_dir, out_dir):
     print("Modified:\t{}".format(modified))
     print("Unmodified:\t{}".format(unmodified))
     print("Unique Peptides:\t{}".format(len(unique_pep_set)))
+    print("Sum: {}".format(summ))
+    print("Sum-Squared: {}".format(sq_sum))
+    print("N: {}".format(N))
+    means = summ / N
+    print("mean: {}".format(means))
+    stds = np.sqrt((sq_sum / N) - means**2)
+    stds[stds < 0.0000001] = float("inf")
+    print("std: {}".format(stds))
+    np.save(join(out_dir, 'means.npy'), means)
+    np.save(join(out_dir, 'stds.npy'), stds)
 
 
 if __name__ == '__main__':

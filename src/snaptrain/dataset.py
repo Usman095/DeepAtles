@@ -24,9 +24,18 @@ class SpectraDataset(data.Dataset):
         
         with open(dir_path, 'rb') as f:
             data = pickle.load(f)
+        random.shuffle(data)
+
+        parent_dir = in_path.parent.absolute()
+        means = np.load(join(parent_dir, "means.npy"))
+        stds = np.load(join(parent_dir, "stds.npy"))
+        self.means = torch.from_numpy(means).float()
+        self.stds = torch.from_numpy(stds).float()
 
         self.charge = config.get_config(section='input', key='charge')
         self.max_pep_len = config.get_config(section='ml', key='max_pep_len')
+        self.min_pep_len = config.get_config(section='ml', key='min_pep_len')
+        self.spec_size = config.get_config(section='input', key='spec_size')
 
         self.mzs = []
         self.ints = []
@@ -41,6 +50,13 @@ class SpectraDataset(data.Dataset):
             self.charges.append(spec_data[3])
             self.is_mods.append(spec_data[4])
             self.miss_cleavs.append(spec_data[5])
+
+        num_classes = self.max_pep_len - self.min_pep_len
+        class_counts = [0] * num_classes
+        for cla in self.lens:
+            class_counts[cla] += 1
+        class_weights = 1./torch.FloatTensor(class_counts)
+        self.class_weights_all = class_weights[self.lens]
         
         print('dataset size: {}'.format(len(data)))
         
@@ -55,9 +71,18 @@ class SpectraDataset(data.Dataset):
         max_spec_len = config.get_config(section='ml', key='max_spec_len')
         spec_mz = self.pad_right(self.mzs[index], max_spec_len)
         spec_intensity = self.pad_right(self.ints[index], max_spec_len)
+
+        ind = torch.LongTensor([[0]*len(spec_mz), spec_mz])
+        val = torch.FloatTensor(spec_intensity)
+        
+        torch_spec = torch.sparse_coo_tensor(
+            ind, val, torch.Size([1, self.spec_size])).to_dense()
+        torch_spec = (torch_spec - self.means) / self.stds
+
         pep_len = self.lens[index]
 
-        return spec_mz, spec_intensity, pep_len
+        # return spec_mz, spec_intensity, pep_len
+        return torch_spec, pep_len
 
 
     def pad_right(self, lst, max_len):
