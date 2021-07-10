@@ -23,14 +23,15 @@ class Net(nn.Module):
         do = config.get_config(section="ml", key="dropout")
         
         ################### Spectra branch ###################
-        # self.spec_embedder = nn.Embedding(self.spec_size, self.embedding_dim)
-        # self.spec_pos_encoder = PositionalEncoding(self.embedding_dim, dropout=do, max_len=self.max_spec_len)
-        # encoder_layers = nn.TransformerEncoderLayer(self.embedding_dim, nhead=self.num_heads, dropout=do, batch_first=True)
-        # self.encoder = nn.TransformerEncoder(encoder_layers, num_layers=self.num_encoder_layers)
-        # self.bn1 = nn.BatchNorm1d(num_features=self.embedding_dim * self.max_spec_len)
+        self.spec_embedder = nn.Embedding(self.spec_size, self.embedding_dim, padding_idx=0)
+        self.int_embedder = nn.Embedding(101, self.embedding_dim, padding_idx=0)
+        self.spec_pos_encoder = PositionalEncoding(self.embedding_dim, dropout=do, max_len=self.max_spec_len)
+        encoder_layers = nn.TransformerEncoderLayer(self.embedding_dim, nhead=self.num_heads, dropout=do, batch_first=True)
+        self.encoder = nn.TransformerEncoder(encoder_layers, num_layers=self.num_encoder_layers)
+        self.bn1 = nn.BatchNorm1d(num_features=self.embedding_dim * self.max_spec_len)
 
-        # self.linear1_1 = nn.Linear(self.embedding_dim * self.max_spec_len, 1024)
-        self.linear1_1 = nn.Linear(self.spec_size, 1024)
+        self.linear1_1 = nn.Linear(self.embedding_dim, 1024)
+        # self.linear1_1 = nn.Linear(self.spec_size, 1024)
         # self.bn1 = nn.BatchNorm1d(num_features=1024)
         
         self.linear1_2 = nn.Linear(1024, 512)
@@ -43,15 +44,24 @@ class Net(nn.Module):
 
         self.dropout = nn.Dropout(do)
         
-    def forward(self, data, mask):
+    def forward(self, mzs, ints, mask):
 
-        # data = self.spec_embedder(data) * math.sqrt(self.embedding_dim)
-        # data = self.spec_pos_encoder(data)
+        mzs = self.spec_embedder(mzs) * math.sqrt(self.embedding_dim)
+        ints = self.int_embedder(ints)
+        data = mzs + ints
+        data = self.spec_pos_encoder(data)
+        # ints = self.int_embedder(ints)
+        # print(mzs.shape)
+        # print(ints.shape)
+        # data = ints + mzs
+        # print(data.shape)
         
-        # out = self.encoder(data, src_key_padding_mask=mask)
+        out = self.encoder(data, src_key_padding_mask=mask)
+        # out = torch.mean(out, dim=1)
+        out = out[:, -1, :]
         
-        # out = F.relu(self.bn2(self.linear1_1(out.view(-1, self.embedding_dim * self.max_spec_len))))
-        out = F.relu((self.linear1_1(data.view(-1, self.spec_size))))
+        out = F.relu((self.linear1_1(out.view(-1, self.embedding_dim))))
+        # out = F.relu((self.linear1_1(data.view(-1, self.spec_size))))
         out = self.dropout(out)
 
         out = F.relu((self.linear1_2(out)))

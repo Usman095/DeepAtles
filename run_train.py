@@ -90,7 +90,7 @@ def run_par(rank, world_size):
     optimizer = optim.Adam(model_.parameters(), lr=lr, weight_decay=weight_decay)
     model_, optimizer = apex.amp.initialize(model_, optimizer, opt_level="O2")
     model_ = apex.parallel.DistributedDataParallel(model_)
-    # model_.load_state_dict(torch.load("./models/attn-2-108.pt")["model_state_dict"])
+    model_.load_state_dict(torch.load("./models/attn-2-199.pt")["model_state_dict"])
 
     # wandb.watch(model_)
     for epoch in range(num_epochs):
@@ -150,10 +150,10 @@ def apply_filter(filt, file_name):
 
 
 def psm_collate(batch):
-    specs = torch.cat([item[0] for item in batch], 0)
-    lens = torch.LongTensor([item[1] for item in batch])
-    # lens = torch.LongTensor([item[2] for item in batch])
-    return [specs, lens]
+    mzs = torch.LongTensor([item[0] for item in batch])
+    ints = torch.LongTensor([item[1] for item in batch])
+    lens = torch.LongTensor([item[2] for item in batch])
+    return [mzs, ints, lens]
 
 # drop_prob=0.5
 # print(vocab_size)
