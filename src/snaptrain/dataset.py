@@ -69,6 +69,7 @@ class SpectraDataset(data.Dataset):
     def __getitem__(self, index):
         'Generates one sample of data'
         max_spec_len = config.get_config(section='ml', key='max_spec_len')
+        charge = config.get_config(section='input', key='charge')
         spec_mz = self.pad_right(self.mzs[index], max_spec_len)
         spec_intensity = self.pad_right(self.ints[index], max_spec_len)
 
@@ -80,8 +81,15 @@ class SpectraDataset(data.Dataset):
         # torch_spec = (torch_spec - self.means) / self.stds
 
         pep_len = self.lens[index]
+        ch_vec = [0] * charge
+        l_ch = self.charges[index]
+        for ch in range(l_ch):
+            ch_vec[ch] = 1
+        mod_vec = [0, 0]
+        l_mod = self.is_mods[index]
+        mod_vec[l_mod] = 1
 
-        return spec_mz, spec_intensity, pep_len
+        return spec_mz, spec_intensity, pep_len, ch_vec, mod_vec
         # return torch_spec, pep_len
 
 

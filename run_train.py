@@ -78,6 +78,7 @@ def run_par(rank, world_size):
         print("Dropout: {}".format(dropout))
 
     cross_entropy_loss = nn.CrossEntropyLoss(reduction="mean")
+    mse_loss = nn.MSELoss(reduction="mean")
     # device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     if torch.cuda.is_available():
         torch.cuda.set_device(rank)
@@ -90,7 +91,7 @@ def run_par(rank, world_size):
     optimizer = optim.Adam(model_.parameters(), lr=lr, weight_decay=weight_decay)
     model_, optimizer = apex.amp.initialize(model_, optimizer, opt_level="O2")
     model_ = apex.parallel.DistributedDataParallel(model_)
-    model_.load_state_dict(torch.load("./models/attn-2-199.pt")["model_state_dict"])
+    # model_.load_state_dict(torch.load("./models/attn-2-199.pt")["model_state_dict"])
 
     # wandb.watch(model_)
     for epoch in range(num_epochs):
@@ -98,8 +99,8 @@ def run_par(rank, world_size):
         print("Epoch: {}".format(l_epoch))
         # train_sampler.set_epoch(l_epoch)
         start_time = timeit.default_timer()
-        loss = trainmodel.train(model_, rank, train_loader, cross_entropy_loss, optimizer, l_epoch)
-        trainmodel.test(model_, rank, val_loader, cross_entropy_loss, l_epoch)
+        loss = trainmodel.train(model_, rank, train_loader, mse_loss, optimizer, l_epoch)
+        trainmodel.test(model_, rank, val_loader, mse_loss, l_epoch)
         elapsed = timeit.default_timer() - start_time
         print("time takes: {} secs.".format(elapsed))
 
@@ -152,8 +153,10 @@ def apply_filter(filt, file_name):
 def psm_collate(batch):
     mzs = torch.LongTensor([item[0] for item in batch])
     ints = torch.LongTensor([item[1] for item in batch])
-    lens = torch.LongTensor([item[2] for item in batch])
-    return [mzs, ints, lens]
+    lens = torch.FloatTensor([item[2] for item in batch])
+    chars = torch.FloatTensor([item[3] for item in batch])
+    mods = torch.LongTensor([item[4] for item in batch])
+    return [mzs, ints, lens, chars, mods]
 
 # drop_prob=0.5
 # print(vocab_size)

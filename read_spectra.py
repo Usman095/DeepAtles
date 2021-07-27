@@ -153,7 +153,10 @@ def preprocess_mgfs(mgf_dir, out_dir):
                 l_charge = int(re.findall(r"CHARGE=([-+]?[0-9]*\.?[0-9]*)", line)[0])
                 mass = (mass - config.PROTON) * l_charge
                 is_charge = True
-                if l_charge != charge or round(mass*10) > spec_size:
+                if l_charge > charge:
+                    is_name = is_mw = is_charge = False
+                    continue
+                if round(mass*10) > spec_size:
                     is_name = is_mw = is_charge = False
                     continue
                 
@@ -180,8 +183,8 @@ def preprocess_mgfs(mgf_dir, out_dir):
                 lens[pep_len - min_pep_len] += 1
                 if num_mods > 0:
                     modified += 1
-                    is_name = is_mw = is_charge = False
-                    continue
+                    # is_name = is_mw = is_charge = False
+                    # continue
                 else:
                     unmodified += 1
                         
@@ -229,11 +232,11 @@ def preprocess_mgfs(mgf_dir, out_dir):
                 ind = list(spec_ind)
                 val = list(spec_val)
 
-                # sorts = list(zip(*(sorted(zip(ind, val), key=lambda x: x[1], reverse=True))))
-                # sorts[0], sorts[1] = sorts[0][:max_spec_len], sorts[1][:max_spec_len]
-                # unsorts = list(zip(*(sorted(zip(sorts[0], sorts[1]), key=lambda x: x[0]))))
-                # ind = unsorts[0]
-                # val = unsorts[1]
+                sorts = list(zip(*(sorted(zip(ind, val), key=lambda x: x[1], reverse=True))))
+                sorts[0], sorts[1] = sorts[0][:max_spec_len], sorts[1][:max_spec_len]
+                unsorts = list(zip(*(sorted(zip(sorts[0], sorts[1]), key=lambda x: x[0]))))
+                ind = unsorts[0]
+                val = unsorts[1]
                     
                 assert len(ind) == len(val)
                 spec_out.append([ind, val, pep_len - min_pep_len, l_charge, int(num_mods > 0), missed_cleavs])

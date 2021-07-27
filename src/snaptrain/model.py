@@ -32,19 +32,26 @@ class Net(nn.Module):
 
         self.linear1_1 = nn.Linear(self.embedding_dim, 1024)
         # self.linear1_1 = nn.Linear(self.spec_size, 1024)
-        # self.bn1 = nn.BatchNorm1d(num_features=1024)
+        self.bn1 = nn.BatchNorm1d(num_features=1024)
         
         self.linear1_2 = nn.Linear(1024, 512)
-        # self.bn2 = nn.BatchNorm1d(num_features=512)
+        self.bn2 = nn.BatchNorm1d(num_features=512)
+
+        self.linear_ch_1 = nn.Linear(self.charge, 128)
+        self.bn_ch_1 = nn.BatchNorm1d(num_features=128)
+        self.linear_ch_2 = nn.Linear(128, 256)
+        self.bn_ch_2 = nn.BatchNorm1d(num_features=256)
+        self.linear_ch_3 = nn.Linear(256, 512)
 
         self.linear1_3 = nn.Linear(512, 256)
-        # self.bn3 = nn.BatchNorm1d(num_features=256)
+        self.bn3 = nn.BatchNorm1d(num_features=256)
 
-        self.linear_out = nn.Linear(256, self.max_pep_len - self.min_pep_len)
+        # self.linear_out = nn.Linear(256, self.max_pep_len - self.min_pep_len)
+        self.linear_out = nn.Linear(256, 1)
 
         self.dropout = nn.Dropout(do)
         
-    def forward(self, mzs, ints, mask):
+    def forward(self, mzs, ints, chars, mask):
 
         mzs = self.spec_embedder(mzs) * math.sqrt(self.embedding_dim)
         ints = self.int_embedder(ints)
@@ -57,17 +64,27 @@ class Net(nn.Module):
         # print(data.shape)
         
         out = self.encoder(data, src_key_padding_mask=mask)
-        # out = torch.mean(out, dim=1)
-        out = out[:, -1, :]
+        out = torch.mean(out, dim=1)
+        # out = out[:, -1, :]
         
-        out = F.relu((self.linear1_1(out.view(-1, self.embedding_dim))))
+        out = F.relu(self.bn1(self.linear1_1(out.view(-1, self.embedding_dim))))
         # out = F.relu((self.linear1_1(data.view(-1, self.spec_size))))
         out = self.dropout(out)
 
-        out = F.relu((self.linear1_2(out)))
+        # out = F.relu(self.bn2(self.linear1_2(out)))
+        out = self.linear1_2(out)
+
+        ch_out = F.relu(self.bn_ch_1(self.linear_ch_1(chars.view(-1, self.charge))))
+        ch_out = self.dropout(ch_out)
+        ch_out = F.relu(self.bn_ch_2(self.linear_ch_2(ch_out)))
+        ch_out = self.dropout(ch_out)
+        ch_out = self.linear_ch_3(ch_out)
+
+        out = F.relu(self.bn2(out + ch_out))
+
         out = self.dropout(out)
 
-        out = F.relu((self.linear1_3(out)))
+        out = F.relu(self.bn3(self.linear1_3(out)))
         out = self.dropout(out)
 
         out = self.linear_out(out)
