@@ -10,8 +10,8 @@ from torch._C import dtype
 from torch.utils import data
 from sklearn import preprocessing
 
-from src.snapconfig import config
-from src.snaputils import simulatespectra as sim
+from src.atlesconfig import config
+from src.atlesutils import simulatespectra as sim
 
 
 class SpectraDataset(data.Dataset):

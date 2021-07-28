@@ -1,6 +1,6 @@
 import torch
 
-from src.snapconfig import config
+from src.atlesconfig import config
 
 
 def generate_percolator_input(l_pep_inds, l_pep_vals, pd_dataset, spec_dataset, res_type):

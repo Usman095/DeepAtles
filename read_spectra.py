@@ -9,8 +9,8 @@ import pickle
 import numpy as np
 from sklearn.model_selection import train_test_split
 
-from src.snapconfig import config
-from src.snaputils import simulatespectra as sim
+from src.atlesconfig import config
+from src.atlesutils import simulatespectra as sim
 
 
 def create_out_dir(dir_path, exist_ok=True):

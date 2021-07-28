@@ -1,7 +1,7 @@
 from torch.utils.data import Sampler
 import random
 
-from src.snapconfig import config
+from src.atlesconfig import config
 
 
 class PSMSampler(Sampler):

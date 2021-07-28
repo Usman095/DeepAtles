@@ -1,8 +1,8 @@
 import numpy as np
 import torch
 
-from src.snapconfig import config
-from src.snaputils import simulatespectra as sim
+from src.atlesconfig import config
+from src.atlesutils import simulatespectra as sim
 
 
 def pairwise_distances(x, y=None):

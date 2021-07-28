@@ -5,8 +5,8 @@ import torch
 import progressbar
 from tqdm import tqdm
 
-from src.snapconfig import config
-from src.snaptrain import process
+from src.atlesconfig import config
+from src.atlestrain import process
 
 
 def ppm(val, ppm_val):

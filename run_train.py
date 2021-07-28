@@ -22,9 +22,9 @@ from torch.utils.data.sampler import WeightedRandomSampler
 import wandb
 torch.manual_seed(1)
 
-from src.snapconfig import config
-from src.snaptrain import dataset, model, trainmodel, sampler
-from src.snaputils import simulatespectra as sim
+from src.atlesconfig import config
+from src.atlestrain import dataset, model, trainmodel, sampler
+from src.atlesutils import simulatespectra as sim
 
 # with redirect_output("deepSNAP_redirect.txtS"):
 train_loss     = []

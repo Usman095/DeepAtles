@@ -5,7 +5,7 @@ import numpy as np
 
 from sklearn import preprocessing
 
-from src.snapconfig import config
+from src.atlesconfig import config
 
 
 def get_rand_mod(seq, num_mods=1):

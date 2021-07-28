@@ -6,8 +6,8 @@ import numpy as np
 from IPython.display import clear_output
 from sklearn import preprocessing
 
-from src.snapconfig import config
-from src.snaputils import simulatespectra as sim
+from src.atlesconfig import config
+from src.atlesutils import simulatespectra as sim
 
 
 def read_msps(msp_folder, decoy=False):

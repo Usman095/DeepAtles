@@ -8,9 +8,9 @@ import torch
 from torch.utils import data
 from tqdm import tqdm
 
-from src.snapconfig import config
-from src.snapsearch import preprocess
-from src.snaputils import simulatespectra as sim
+from src.atlesconfig import config
+from src.atlespredict import preprocess
+from src.atlesutils import simulatespectra as sim
 
 
 class PeptideDataset(data.Dataset):

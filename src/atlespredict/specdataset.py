@@ -9,8 +9,8 @@ from torch.utils import data
 import torch
 from tqdm import tqdm
 
-from src.snapconfig import config
-from src.snaputils import preprocess as prep
+from src.atlesconfig import config
+from src.atlesutils import preprocess as prep
 
 
 class SpectralDataset(data.Dataset):

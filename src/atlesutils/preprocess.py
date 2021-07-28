@@ -7,7 +7,7 @@ import re
 import numpy as np
 import torch
 
-from src.snapconfig import config
+from src.atlesconfig import config
 
 
 def create_out_dir(dir_path, exist_ok=True):

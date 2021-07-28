@@ -6,7 +6,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from src.snapconfig import config
+from src.atlesconfig import config
 
 #adding useless comment
 class Net(nn.Module):
