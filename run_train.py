@@ -22,7 +22,7 @@ from torch.utils.data.sampler import WeightedRandomSampler
 import wandb
 torch.manual_seed(1)
 
-from src.atlesconfig import config
+from src.atlesconfig import config, wandbsetup
 from src.atlestrain import dataset, model, trainmodel, sampler
 from src.atlesutils import simulatespectra as sim
 
@@ -35,10 +35,9 @@ test_accuracy  = []
 def run_par(rank, world_size):
     model_name = "attn-2" #first k is spec size second is batch size
     print("Training {}.".format(model_name))
-    # model_name = "time-4096"
-    # wandb.init(project="SpeCollate", entity="pcds")
-    # wandb.run.name = "{}-{}".format(model_name, wandb.run.id)
-    # wandb.config.learning_rate = 0.00005
+    wandb.init(project="deepatles", entity="pcds")
+    wandb.run.name = "{}-{}-{}".format(model_name, os.environ['SLURM_JOB_ID'], wandb.run.id)
+    wandbsetup.set_wandb_config(wandb)
     
     setup(rank, world_size)
 
@@ -93,7 +92,7 @@ def run_par(rank, world_size):
     model_ = apex.parallel.DistributedDataParallel(model_)
     # model_.load_state_dict(torch.load("./models/attn-2-199.pt")["model_state_dict"])
 
-    # wandb.watch(model_)
+    wandb.watch(model_)
     for epoch in range(num_epochs):
         l_epoch = (epoch * world_size) + rank
         print("Epoch: {}".format(l_epoch))
@@ -112,11 +111,14 @@ def run_par(rank, world_size):
             'model_state_dict': model_.state_dict(),
             'optimizer_state_dict': optimizer.state_dict(),
             'loss': loss,
-            }, "./models/{}-{}.pt".format(model_name, l_epoch))
+            }, "atles-out/" + os.environ['SLURM_JOB_ID'] + "/models/{}-{}.pt".format(model_name, l_epoch))
+            # remove the model two steps before.
+            if os.path.exists("atles-out" + os.environ['SLURM_JOB_ID'] + "/models/{}-{}.pt".format(model_name, l_epoch-2)):
+                os.remove("atles-out" + os.environ['SLURM_JOB_ID'] + "/models/{}-{}.pt".format(model_name, l_epoch-2))
             # model_name = "single_mod-{}-{}.pt".format(epoch, lr)
             # print(wandb.run.dir)
             # torch.save(model_.state_dict(), join("./models/hcd/", model_name))
-            # wandb.save("{}-{}.pt".format(model_name, l_epoch))
+            wandb.save("{}-{}.pt".format(model_name, l_epoch))
     
     cleanup()
 

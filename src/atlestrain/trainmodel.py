@@ -69,6 +69,10 @@ def train(model, device, train_loader, mse_loss, optimizer, epoch):
     accuracy_0 = 100. * float(accurate_labels_0) / all_labels
     accuracy_1 = 100. * float(accurate_labels_1) / all_labels
     accuracy_2 = 100. * float(accurate_labels_2) / all_labels
+    wandb.log({"Train loss": tot_loss}, step=epoch)
+    wandb.log({"Train Accuracy Margin-0": accuracy_0}, step=epoch)
+    wandb.log({"Train Accuracy Margin-1": accuracy_1}, step=epoch)
+    wandb.log({"Train Accuracy Margin-2": accuracy_2}, step=epoch)
     print('Train accuracy:\t{}/{} ({:.3f}%)\t\tLoss: {:.6f}'.format(accurate_labels_0, all_labels, accuracy_0, tot_loss/all_labels))
     print('Train accuracy:\t{}/{} ({:.3f}%)\t\tLoss: {:.6f}'.format(accurate_labels_1, all_labels, accuracy_1, tot_loss/all_labels))
     print('Train accuracy:\t{}/{} ({:.3f}%)\t\tLoss: {:.6f}'.format(accurate_labels_2, all_labels, accuracy_2, tot_loss/all_labels))
@@ -108,6 +112,10 @@ def test(model, device, test_loader, mse_loss, epoch):
         accuracy_0 = 100. * float(accurate_labels_0) / all_labels
         accuracy_1 = 100. * float(accurate_labels_1) / all_labels
         accuracy_2 = 100. * float(accurate_labels_2) / all_labels
+        wandb.log({"Test loss": tot_loss}, step=epoch)
+        wandb.log({"Test Accuracy Margin-0": accuracy_0}, step=epoch)
+        wandb.log({"Test Accuracy Margin-1": accuracy_1}, step=epoch)
+        wandb.log({"Test Accuracy Margin-2": accuracy_2}, step=epoch)
         print('Test accuracy:\t{}/{} ({:.3f}%)\t\tLoss: {:.6f}'.format(accurate_labels_0, all_labels, accuracy_0, tot_loss/all_labels))
         print('Test accuracy:\t{}/{} ({:.3f}%)\t\tLoss: {:.6f}'.format(accurate_labels_1, all_labels, accuracy_1, tot_loss/all_labels))
         print('Test accuracy:\t{}/{} ({:.3f}%)\t\tLoss: {:.6f}'.format(accurate_labels_2, all_labels, accuracy_2, tot_loss/all_labels))

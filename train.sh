@@ -1,6 +1,6 @@
 #!/bin/bash
-#SBATCH --job-name="wandb-test"
-#SBATCH --output="atles-out/wandb-test.%j.%N.out"
+#SBATCH --job-name=""
+#SBATCH --output="atles-out/bak/atles.%j.%N.out"
 #SBATCH --partition=gpu-shared
 #SBATCH --nodes=1
 #SBATCH --gpus=1
@@ -14,5 +14,10 @@ module purge
 module load gpu
 module load slurm
 
-CUDA_LAUNCH_BLOCKING=1 python3 run_train.py
-# python3 run_train.py
+mkdir atles-out/$SLURM_JOB_ID
+mkdir atles-out/$SLURM_JOB_ID/models
+mkdir atles-out/$SLURM_JOB_ID/code
+cp -R src config.ini read_spectra.py read_spectra.sh run_train.py train.sh atles-out/$SLURM_JOB_ID/code/
+
+# CUDA_LAUNCH_BLOCKING=1 python3 run_train.py
+python3 run_train.py
