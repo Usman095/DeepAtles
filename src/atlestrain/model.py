@@ -37,17 +37,31 @@ class Net(nn.Module):
         self.linear1_2 = nn.Linear(1024, 512)
         self.bn2 = nn.BatchNorm1d(num_features=512)
 
+        ################### Incoming branch for charge
         self.linear_ch_1 = nn.Linear(self.charge, 128)
         self.bn_ch_1 = nn.BatchNorm1d(num_features=128)
         self.linear_ch_2 = nn.Linear(128, 256)
         self.bn_ch_2 = nn.BatchNorm1d(num_features=256)
         self.linear_ch_3 = nn.Linear(256, 512)
 
+        ################### Missed cleavage branch #
+        # self.linear_miss_clv_1 = nn.Linear(512, 256)
+        # self.bn_miss_clv_1 = nn.BatchNorm1d(num_features=256)
+
+        self.linear_miss_clv_2 = nn.Linear(256, 128)
+        self.bn_miss_clv_2 = nn.BatchNorm1d(num_features=128)
+
+        self.linear_miss_clv_3 = nn.Linear(128, 3)
+
+        ################### Spectra branch continues
         self.linear1_3 = nn.Linear(512, 256)
         self.bn3 = nn.BatchNorm1d(num_features=256)
 
+        self.linear1_4 = nn.Linear(256, 128)
+        self.bn4 = nn.BatchNorm1d(num_features=128)
+
         # self.linear_out = nn.Linear(256, self.max_pep_len - self.min_pep_len)
-        self.linear_out = nn.Linear(256, 1)
+        self.linear_out = nn.Linear(128, 1)
 
         self.dropout = nn.Dropout(do)
         
@@ -81,15 +95,27 @@ class Net(nn.Module):
         ch_out = self.linear_ch_3(ch_out)
 
         out = F.relu(self.bn2(out + ch_out))
-
         out = self.dropout(out)
 
         out = F.relu(self.bn3(self.linear1_3(out)))
         out = self.dropout(out)
 
+         ## Missed cleavage branch
+        # out_clv = F.relu(self.linear_miss_clv_1(out))
+        # out_clv = self.dropout(out_clv)
+
+        out_clv = F.relu(self.linear_miss_clv_2(out))
+        out_clv = self.dropout(out_clv)
+
+        out_clv = self.linear_miss_clv_3(out_clv)
+
+        ## Spectra branch continues
+        out = F.relu(self.bn4(self.linear1_4(out)))
+        out = self.dropout(out)
+
         out = self.linear_out(out)
         
-        return out
+        return out, out_clv
     
     def name(self):
         return "Net"

@@ -33,7 +33,7 @@ train_accuracy = []
 test_accuracy  = []
 
 def run_par(rank, world_size):
-    model_name = "attn-2" #first k is spec size second is batch size
+    model_name = "deepatles" #first k is spec size second is batch size
     print("Training {}.".format(model_name))
     wandb.init(project="deepatles", entity="pcds")
     wandb.run.name = "{}-{}-{}".format(model_name, os.environ['SLURM_JOB_ID'], wandb.run.id)
@@ -76,7 +76,7 @@ def run_par(rank, world_size):
         print("Heads: {}".format(num_heads))
         print("Dropout: {}".format(dropout))
 
-    cross_entropy_loss = nn.CrossEntropyLoss(reduction="mean")
+    ce_loss = nn.CrossEntropyLoss(reduction="mean")
     mse_loss = nn.MSELoss(reduction="mean")
     # device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     if torch.cuda.is_available():
@@ -98,8 +98,8 @@ def run_par(rank, world_size):
         print("Epoch: {}".format(l_epoch))
         # train_sampler.set_epoch(l_epoch)
         start_time = timeit.default_timer()
-        loss = trainmodel.train(model_, rank, train_loader, mse_loss, optimizer, l_epoch)
-        trainmodel.test(model_, rank, val_loader, mse_loss, l_epoch)
+        loss = trainmodel.train(model_, rank, train_loader, mse_loss, ce_loss, optimizer, l_epoch)
+        trainmodel.test(model_, rank, val_loader, mse_loss, ce_loss, l_epoch)
         elapsed = timeit.default_timer() - start_time
         print("time takes: {} secs.".format(elapsed))
 
@@ -111,14 +111,14 @@ def run_par(rank, world_size):
             'model_state_dict': model_.state_dict(),
             'optimizer_state_dict': optimizer.state_dict(),
             'loss': loss,
-            }, "atles-out/" + os.environ['SLURM_JOB_ID'] + "/models/{}-{}.pt".format(model_name, l_epoch))
+            }, "atles-out/" + os.environ['SLURM_JOB_ID'] + "/models/{}-{}.pt".format(wandb.run.name, l_epoch))
             # remove the model two steps before.
-            if os.path.exists("atles-out" + os.environ['SLURM_JOB_ID'] + "/models/{}-{}.pt".format(model_name, l_epoch-2)):
-                os.remove("atles-out" + os.environ['SLURM_JOB_ID'] + "/models/{}-{}.pt".format(model_name, l_epoch-2))
+            if os.path.exists("atles-out" + os.environ['SLURM_JOB_ID'] + "/models/{}-{}.pt".format(wandb.run.name, l_epoch-2)):
+                os.remove("atles-out" + os.environ['SLURM_JOB_ID'] + "/models/{}-{}.pt".format(wandb.run.name, l_epoch-2))
             # model_name = "single_mod-{}-{}.pt".format(epoch, lr)
             # print(wandb.run.dir)
             # torch.save(model_.state_dict(), join("./models/hcd/", model_name))
-            wandb.save("{}-{}.pt".format(model_name, l_epoch))
+            wandb.save("{}-{}.pt".format(wandb.run.name, l_epoch))
     
     cleanup()
 
@@ -158,7 +158,8 @@ def psm_collate(batch):
     lens = torch.FloatTensor([item[2] for item in batch])
     chars = torch.FloatTensor([item[3] for item in batch])
     mods = torch.LongTensor([item[4] for item in batch])
-    return [mzs, ints, lens, chars, mods]
+    miss_cleavs = torch.LongTensor([item[5] for item in batch])
+    return [mzs, ints, lens, chars, mods, miss_cleavs]
 
 # drop_prob=0.5
 # print(vocab_size)

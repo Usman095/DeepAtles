@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name="wandb-test"
-#SBATCH --output="atles-out/wandb-test.%j.%N.out"
+#SBATCH --output="atles-out/bak/read-specs.%j.%N.out"
 #SBATCH --partition=gpu-shared
 #SBATCH --nodes=1
 #SBATCH --gpus=1
