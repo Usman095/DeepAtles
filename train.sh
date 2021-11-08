@@ -1,18 +1,14 @@
 #!/bin/bash
-#SBATCH --job-name=""
+#SBATCH --job-name="atles-hpg-atles"
 #SBATCH --output="atles-out/bak/atles.%j.%N.out"
-#SBATCH --partition=gpu-shared
+#SBATCH --partition=gpu
 #SBATCH --nodes=1
-#SBATCH --gpus=1
+#SBATCH --gpus=a100:1
 #SBATCH --ntasks-per-node=10
-#SBATCH --mem=96G
-#SBATCH --account=wmu101
+#SBATCH --mem=250gb
+#SBATCH --account=fsaeed
 #SBATCH --no-requeue
 #SBATCH -t 48:00:00
-
-module purge
-module load gpu
-module load slurm
 
 mkdir atles-out/$SLURM_JOB_ID
 mkdir atles-out/$SLURM_JOB_ID/models
