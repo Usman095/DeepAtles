@@ -44,6 +44,7 @@ class SpectraDataset(data.Dataset):
         self.is_mods = []
         self.miss_cleavs = []
         for spec_data in data:
+            # [m/z, intensity, peptide length, spectrum charge, is modified, num missed cleavages]
             self.mzs.append(spec_data[0])
             self.ints.append(spec_data[1])
             self.lens.append(spec_data[2])
@@ -89,7 +90,11 @@ class SpectraDataset(data.Dataset):
         l_mod = self.is_mods[index]
         mod_vec[l_mod] = 1
 
-        return spec_mz, spec_intensity, pep_len, ch_vec, mod_vec
+        # cleav_vec = [0, 0, 0]
+        # cleav_vec[self.miss_cleavs[index]] = 1
+        # print(self.miss_cleavs[index])
+
+        return spec_mz, spec_intensity, pep_len, ch_vec, mod_vec, self.miss_cleavs[index]
         # return torch_spec, pep_len
 
 

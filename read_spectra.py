@@ -165,7 +165,12 @@ def preprocess_mgfs(mgf_dir, out_dir):
                 mod_repl_rex = r'([-+]?\d*\.\d+|[-+]?\d+)'
                 pep, num_mods = re.subn(mod_repl_rex, mod_repl, line)
                 pep_len = sum(map(str.isupper, pep))
-                missed_cleavs = (pep.count("K") + pep.count("R")) - (pep.count("KP") + pep.count("RP")) - 1
+                missed_cleavs = (pep.count("K") + pep.count("R")) - (pep.count("KP") + pep.count("RP"))
+                if pep[-1] == 'K' or pep[-1] == 'R':
+                    missed_cleavs -= 1
+                if missed_cleavs > 2:
+                    is_name = is_mw = is_charge = False
+                    continue
                 num_mods -= len(re.findall("c", pep))
 #                 max_missed_cleavs = max(missed_cleavs, max_missed_cleavs)
                     

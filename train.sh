@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=""
+#SBATCH --job-name="atles"
 #SBATCH --output="atles-out/bak/atles.%j.%N.out"
 #SBATCH --partition=gpu-shared
 #SBATCH --nodes=1
