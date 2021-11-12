@@ -8,3 +8,5 @@ def set_wandb_config(wandb):
     wandb.config.encoder_layers = config.get_config(section='ml', key='encoder_layers')
     wandb.config.num_heads = config.get_config(section='ml', key='num_heads')
     wandb.config.dropout = config.get_config(section='ml', key='dropout')
+    wandb.config.mse_weight = config.get_config(section='ml', key='mse_weight')
+    wandb.config.ce_weight = config.get_config(section='ml', key='ce_weight')
