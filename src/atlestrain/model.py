@@ -37,6 +37,9 @@ class Net(nn.Module):
         self.linear1_2 = nn.Linear(1024, 512)
         self.bn2 = nn.BatchNorm1d(num_features=512)
 
+        self.linear1_3 = nn.Linear(512, 256)
+        self.bn3 = nn.BatchNorm1d(num_features=256)
+
         ################### Incoming branch for charge
         self.linear_ch_1 = nn.Linear(self.charge, 128)
         self.bn_ch_1 = nn.BatchNorm1d(num_features=128)
@@ -44,7 +47,7 @@ class Net(nn.Module):
         self.bn_ch_2 = nn.BatchNorm1d(num_features=256)
         self.linear_ch_3 = nn.Linear(256, 512)
 
-        ################### Missed cleavage branch #
+        ################### Missed cleavage branch ########
         # self.linear_miss_clv_1 = nn.Linear(512, 256)
         # self.bn_miss_clv_1 = nn.BatchNorm1d(num_features=256)
 
@@ -53,9 +56,13 @@ class Net(nn.Module):
 
         self.linear_miss_clv_3 = nn.Linear(128, 3)
 
+        ################### Modification branch ###########
+        self.linear_mod_1 = nn.Linear(256, 128)
+        self.bn_mod_1 = nn.BatchNorm1d(num_features=128)
+
+        self.linear_mod_2 = nn.Linear(128, 2)
+
         ################### Spectra branch continues
-        self.linear1_3 = nn.Linear(512, 256)
-        self.bn3 = nn.BatchNorm1d(num_features=256)
 
         self.linear1_4 = nn.Linear(256, 128)
         self.bn4 = nn.BatchNorm1d(num_features=128)
@@ -109,13 +116,19 @@ class Net(nn.Module):
 
         out_clv = self.linear_miss_clv_3(out_clv)
 
+        ## Mod branch
+        out_mod = F.relu(self.linear_mod_1(out))
+        out_mod = self.dropout(out_mod)
+
+        out_mod = self.linear_mod_2(out_mod)
+
         ## Spectra branch continues
         out = F.relu(self.bn4(self.linear1_4(out)))
         out = self.dropout(out)
 
         out = self.linear_out(out)
         
-        return out, out_clv
+        return out, out_clv, out_mod
     
     def name(self):
         return "Net"

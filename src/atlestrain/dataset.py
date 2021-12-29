@@ -86,15 +86,12 @@ class SpectraDataset(data.Dataset):
         l_ch = self.charges[index]
         for ch in range(l_ch):
             ch_vec[ch] = 1
-        mod_vec = [0, 0]
-        l_mod = self.is_mods[index]
-        mod_vec[l_mod] = 1
 
         # cleav_vec = [0, 0, 0]
         # cleav_vec[self.miss_cleavs[index]] = 1
         # print(self.miss_cleavs[index])
 
-        return spec_mz, spec_intensity, pep_len, ch_vec, mod_vec, self.miss_cleavs[index]
+        return spec_mz, spec_intensity, pep_len, ch_vec, self.is_mods[index], self.miss_cleavs[index]
         # return torch_spec, pep_len
 
 

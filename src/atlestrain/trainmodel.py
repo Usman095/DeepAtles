@@ -21,17 +21,18 @@ train_loss = []
 test_accuracy = []
 test_loss = []
 mse_weight = config.get_config(section="ml", key="mse_weight")
-ce_weight = config.get_config(section="ml", key="ce_weight")
-divider = ce_weight + mse_weight
+ce_weight_clv = config.get_config(section="ml", key="ce_weight_clv")
+ce_weight_mod = config.get_config(section="ml", key="ce_weight_mod")
+divider = ce_weight_clv + mse_weight
 
 
 def train(model, device, train_loader, mse_loss, ce_loss, optimizer, epoch):
     model.train()
 
-    accurate_cleavs = 0
+    accurate_cleavs = accurate_mods = 0
     accurate_labels_0 = accurate_labels_1 = accurate_labels_2 = 0
     all_labels = 0
-    tot_mse_loss = tot_ce_loss = tot_loss = 0
+    tot_mse_loss = tot_ce_clv_loss = tot_ce_mod_loss = tot_loss = 0
     
     # pbar = tqdm(train_loader, file=sys.stdout)
     # pbar.set_description('Training...')
@@ -47,18 +48,21 @@ def train(model, device, train_loader, mse_loss, ce_loss, optimizer, epoch):
 
         input_mask = data[0] == 0
         # input_mask = 0
-        lens, cleavs = model(data[0], data[1], data[3], input_mask)
+        lens, cleavs, mods = model(data[0], data[1], data[3], input_mask)
         lens = lens.squeeze()
         # cleavs = cleavs.squeeze()
         # print(len(cleavs))
         # print(torch.min(data[5]), torch.max(data[5]))
         mse_loss_val = mse_loss(lens, data[2])
-        ce_loss_val = ce_loss(cleavs, data[5])
-        loss = (mse_weight * mse_loss_val + ce_weight * ce_loss_val)# / divider
+        ce_clv_loss_val = ce_loss(cleavs, data[5])
+        ce_mod_loss_val = ce_loss(mods, data[4])
+        loss = (mse_weight * mse_loss_val + ce_weight_clv * ce_clv_loss_val + \
+                ce_weight_mod * ce_mod_loss_val)# / divider
         # loss = sum(loss_lst) / len(loss_lst)
         # loss = mse_loss_val
         tot_mse_loss += float(mse_loss_val)
-        tot_ce_loss += float(ce_loss_val)
+        tot_ce_clv_loss += float(ce_clv_loss_val)
+        tot_ce_mod_loss += float(ce_mod_loss_val)
         tot_loss += float(loss)
         
         with amp.scale_loss(loss, optimizer) as scaled_loss:
@@ -73,6 +77,7 @@ def train(model, device, train_loader, mse_loss, ce_loss, optimizer, epoch):
         accurate_labels_1 += mse_acc(lens, data[2], err=1)
         accurate_labels_2 += mse_acc(lens, data[2], err=2)
         accurate_cleavs += multi_acc(cleavs, data[5])
+        accurate_mods += multi_acc(mods, data[4])
         all_labels += len(lens)
         # p_bar.update(idx)
     
@@ -81,17 +86,21 @@ def train(model, device, train_loader, mse_loss, ce_loss, optimizer, epoch):
     accuracy_1 = 100. * float(accurate_labels_1) / all_labels
     accuracy_2 = 100. * float(accurate_labels_2) / all_labels
     accuracy_cleavs = 100. * float(accurate_cleavs) / all_labels
+    accuracy_mods = 100. * float(accurate_mods) / all_labels
+
     wandb.log({"Train loss": tot_loss/len(train_loader)}, step=epoch)
     wandb.log({"Train Accuracy Margin-0": accuracy_0}, step=epoch)
     wandb.log({"Train Accuracy Margin-1": accuracy_1}, step=epoch)
     wandb.log({"Train Accuracy Margin-2": accuracy_2}, step=epoch)
     wandb.log({"Train Accuracy Missed Cleavages": accuracy_cleavs}, step=epoch)
-    print('Train accuracy:\t{}/{} ({:.3f}%)\t\tLoss: {:.6f}'.format(accurate_labels_0, all_labels, accuracy_0, tot_loss/len(train_loader)))
-    print('Train accuracy:\t{}/{} ({:.3f}%)\t\tLoss: {:.6f}'.format(accurate_labels_1, all_labels, accuracy_1, tot_loss/len(train_loader)))
-    print('Train accuracy:\t{}/{} ({:.3f}%)\t\tLoss: {:.6f}'.format(accurate_labels_2, all_labels, accuracy_2, tot_loss/len(train_loader)))
-    print('Train accuracy:\t{}/{} ({:.3f}%)\t\tLoss: {:.6f}'.format(accurate_cleavs, all_labels, accuracy_cleavs, tot_loss/len(train_loader)))
-    print('MSE Loss:\t{}'.format(tot_mse_loss/len(train_loader), tot_mse_loss/len(train_loader)))
-    print('CE  Loss:\t{}'.format(tot_ce_loss/len(train_loader), tot_ce_loss/len(train_loader)))
+    wandb.log({"Train Accuracy Modifications": accuracy_mods}, step=epoch)
+
+    print('Train accuracy Margin 0:\t{}/{} ({:.3f}%)\t\tLoss: {:.6f}'.format(accurate_labels_0, all_labels, accuracy_0, tot_mse_loss/len(train_loader)))
+    print('Train accuracy Margin 0:\t{}/{} ({:.3f}%)\t\tLoss: {:.6f}'.format(accurate_labels_1, all_labels, accuracy_1, tot_mse_loss/len(train_loader)))
+    print('Train accuracy Margin 0:\t{}/{} ({:.3f}%)\t\tLoss: {:.6f}'.format(accurate_labels_2, all_labels, accuracy_2, tot_mse_loss/len(train_loader)))
+    print('Train accuracy Clvs:\t{}/{} ({:.3f}%)\t\tLoss: {:.6f}'.format(accurate_cleavs, all_labels, accuracy_cleavs, tot_ce_clv_loss/len(train_loader)))
+    print('Train accuracy Mods:\t{}/{} ({:.3f}%)\t\tLoss: {:.6f}'.format(accurate_mods, all_labels, accuracy_mods, tot_ce_mod_loss/len(train_loader)))
+    print('Total Loss:\t{}'.format(tot_loss/len(train_loader)))
     return loss
     
 
@@ -99,10 +108,10 @@ def test(model, device, test_loader, mse_loss, ce_loss, epoch):
     model.eval()
     
     with torch.no_grad():
-        accurate_cleavs = 0
+        accurate_cleavs = accurate_mods = 0
         accurate_labels_0 = accurate_labels_1 = accurate_labels_2 = 0
         all_labels = 0
-        tot_mse_loss = tot_ce_loss = tot_loss = 0
+        tot_mse_loss = tot_ce_clv_loss = tot_ce_mod_loss = tot_loss = 0
         # with progressbar.ProgressBar(max_value=len(train_loader)) as p_bar:
         for data in test_loader:
             data[0] = data[0].to(device) # m/z's
@@ -114,42 +123,50 @@ def test(model, device, test_loader, mse_loss, ce_loss, epoch):
 
             input_mask = data[0] == 0
             # input_mask = 0
-            lens, cleavs = model(data[0], data[1], data[3], input_mask)
+            lens, cleavs, mods = model(data[0], data[1], data[3], input_mask)
             lens = lens.squeeze()
             # cleavs = cleavs.squeeze()
-            mse_loss_val  = mse_loss(lens, data[2])
-            ce_loss_val   = ce_loss(cleavs, data[5])
-            loss          = (mse_weight * mse_loss_val + ce_weight * ce_loss_val) / divider
+            mse_loss_val = mse_loss(lens, data[2])
+            ce_clv_loss_val = ce_loss(cleavs, data[5])
+            ce_mod_loss_val = ce_loss(mods, data[4])
+            loss = (mse_weight * mse_loss_val + ce_weight_clv * ce_clv_loss_val + \
+                    ce_weight_mod * ce_mod_loss_val)# / divider
+            # loss = sum(loss_lst) / len(loss_lst)
+            # loss = mse_loss_val
             tot_mse_loss += float(mse_loss_val)
-            tot_ce_loss  += float(ce_loss_val)
-            tot_loss     += float(loss)
+            tot_ce_clv_loss += float(ce_clv_loss_val)
+            tot_ce_mod_loss += float(ce_mod_loss_val)
+            tot_loss += float(loss)
             
             # accurate_labels += multi_acc(lens, data[2])
             accurate_labels_0 += mse_acc(lens, data[2], err=0)
             accurate_labels_1 += mse_acc(lens, data[2], err=1)
             accurate_labels_2 += mse_acc(lens, data[2], err=2)
-            accurate_cleavs   += multi_acc(cleavs, data[5])
-            all_labels        += len(lens)
+            accurate_cleavs += multi_acc(cleavs, data[5])
+            accurate_mods += multi_acc(mods, data[4])
+            all_labels += len(lens)
                 
         # accuracy = 100. * float(accurate_labels) / all_labels
         accuracy_0 = 100. * float(accurate_labels_0) / all_labels
         accuracy_1 = 100. * float(accurate_labels_1) / all_labels
         accuracy_2 = 100. * float(accurate_labels_2) / all_labels
         accuracy_cleavs = 100. * float(accurate_cleavs) / all_labels
+        accuracy_mods = 100. * float(accurate_mods) / all_labels
+
         wandb.log({"Test loss": tot_loss/len(test_loader)}, step=epoch)
         wandb.log({"Test Accuracy Margin-0": accuracy_0}, step=epoch)
         wandb.log({"Test Accuracy Margin-1": accuracy_1}, step=epoch)
         wandb.log({"Test Accuracy Margin-2": accuracy_2}, step=epoch)
         wandb.log({"Test Accuracy Missed Cleavages": accuracy_cleavs}, step=epoch)
-        print('Test accuracy:\t{}/{} ({:.3f}%)\t\tLoss: {:.6f}'.format(accurate_labels_0, all_labels, accuracy_0, tot_loss/len(test_loader)))
-        print('Test accuracy:\t{}/{} ({:.3f}%)\t\tLoss: {:.6f}'.format(accurate_labels_1, all_labels, accuracy_1, tot_loss/len(test_loader)))
-        print('Test accuracy:\t{}/{} ({:.3f}%)\t\tLoss: {:.6f}'.format(accurate_labels_2, all_labels, accuracy_2, tot_loss/len(test_loader)))
-        print('Test accuracy:\t{}/{} ({:.3f}%)\t\tLoss: {:.6f}'.format(accurate_cleavs, all_labels, accuracy_cleavs, tot_loss/len(test_loader)))
-        print('MSE Loss:\t{}'.format(tot_mse_loss/len(test_loader), tot_mse_loss/len(test_loader)))
-        print('CE  Loss:\t{}'.format(tot_ce_loss/len(test_loader), tot_ce_loss/len(test_loader)))
+        wandb.log({"Test Accuracy Modifications": accuracy_mods}, step=epoch)
+
+        print('Test accuracy Margin 0:\t{}/{} ({:.3f}%)\t\tLoss: {:.6f}'.format(accurate_labels_0, all_labels, accuracy_0, tot_mse_loss/len(test_loader)))
+        print('Test accuracy Margin 0:\t{}/{} ({:.3f}%)\t\tLoss: {:.6f}'.format(accurate_labels_1, all_labels, accuracy_1, tot_mse_loss/len(test_loader)))
+        print('Test accuracy Margin 0:\t{}/{} ({:.3f}%)\t\tLoss: {:.6f}'.format(accurate_labels_2, all_labels, accuracy_2, tot_mse_loss/len(test_loader)))
+        print('Test accuracy Clvs:\t{}/{} ({:.3f}%)\t\tLoss: {:.6f}'.format(accurate_cleavs, all_labels, accuracy_cleavs, tot_ce_clv_loss/len(test_loader)))
+        print('Test accuracy Mods:\t{}/{} ({:.3f}%)\t\tLoss: {:.6f}'.format(accurate_mods, all_labels, accuracy_mods, tot_ce_mod_loss/len(test_loader)))
+        print('Total Loss:\t{}'.format(tot_loss/len(test_loader)))
         return loss
-
-
 # TODO: change it. taken from 
 # https://towardsdatascience.com/pytorch-tabular-multiclass-classification-9f8211a123ab
 # accessed: 09/18/2020
