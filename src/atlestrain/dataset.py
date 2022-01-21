@@ -74,12 +74,12 @@ class SpectraDataset(data.Dataset):
         spec_mz = self.pad_right(self.mzs[index], max_spec_len)
         spec_intensity = self.pad_right(self.ints[index], max_spec_len)
 
-        # ind = torch.LongTensor([[0]*len(spec_mz), spec_mz])
-        # val = torch.FloatTensor(spec_intensity)
+        ind = torch.LongTensor([[0]*len(spec_mz), spec_mz])
+        val = torch.FloatTensor(spec_intensity)
         
-        # torch_spec = torch.sparse_coo_tensor(
-        #     ind, val, torch.Size([1, self.spec_size])).to_dense()
-        # torch_spec = (torch_spec - self.means) / self.stds
+        torch_spec = torch.sparse_coo_tensor(
+            ind, val, torch.Size([1, self.spec_size])).to_dense()
+        torch_spec = (torch_spec - self.means) / self.stds
 
         pep_len = self.lens[index]
         ch_vec = [0] * charge
@@ -91,7 +91,7 @@ class SpectraDataset(data.Dataset):
         # cleav_vec[self.miss_cleavs[index]] = 1
         # print(self.miss_cleavs[index])
 
-        return spec_mz, spec_intensity, pep_len, ch_vec, self.is_mods[index], self.miss_cleavs[index]
+        return torch_spec, pep_len, ch_vec, self.is_mods[index], self.miss_cleavs[index]
         # return torch_spec, pep_len
 
 

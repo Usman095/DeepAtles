@@ -8,7 +8,7 @@
 #SBATCH --mem=250gb
 #SBATCH --account=fsaeed
 #SBATCH --no-requeue
-#SBATCH -t 48:00:00
+#SBATCH -t 72:00:00
 
 mkdir atles-out/$SLURM_JOB_ID
 mkdir atles-out/$SLURM_JOB_ID/models

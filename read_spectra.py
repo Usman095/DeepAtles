@@ -237,9 +237,9 @@ def preprocess_mgfs(mgf_dir, out_dir):
                 ind = list(spec_ind)
                 val = list(spec_val)
 
-                sorts = list(zip(*(sorted(zip(ind, val), key=lambda x: x[1], reverse=True))))
-                sorts[0], sorts[1] = sorts[0][:max_spec_len], sorts[1][:max_spec_len]
-                unsorts = list(zip(*(sorted(zip(sorts[0], sorts[1]), key=lambda x: x[0]))))
+                sorts = list(zip(*(sorted(zip(ind, val), key=lambda x: x[1], reverse=True)))) # sort by intensity
+                sorts[0], sorts[1] = sorts[0][:max_spec_len], sorts[1][:max_spec_len] # select top intensity peaks
+                unsorts = list(zip(*(sorted(zip(sorts[0], sorts[1]), key=lambda x: x[0])))) # sorty back using m/z
                 ind = unsorts[0]
                 val = unsorts[1]
                     

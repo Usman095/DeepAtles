@@ -45,7 +45,7 @@ def run_par(rank, world_size):
     prep_dir = config.get_config(section='input', key='prep_dir')
 
     train_dataset = dataset.SpectraDataset(join(prep_dir, 'train_specs.pkl'))
-    val_dataset  = dataset.SpectraDataset(join(prep_dir, 'val_specs.pkl'))
+    val_dataset   = dataset.SpectraDataset(join(prep_dir, 'val_specs.pkl'))
 
     weights_all = train_dataset.class_weights_all
     weighted_sampler = WeightedRandomSampler(weights=weights_all, num_samples=len(weights_all), replacement=True)
@@ -113,8 +113,8 @@ def run_par(rank, world_size):
             'loss': loss,
             }, "atles-out/" + os.environ['SLURM_JOB_ID'] + "/models/{}-{}.pt".format(wandb.run.name, l_epoch))
             # remove the model two steps before.
-            if os.path.exists("atles-out" + os.environ['SLURM_JOB_ID'] + "/models/{}-{}.pt".format(wandb.run.name, l_epoch-2)):
-                os.remove("atles-out" + os.environ['SLURM_JOB_ID'] + "/models/{}-{}.pt".format(wandb.run.name, l_epoch-2))
+            if os.path.exists("atles-out/" + os.environ['SLURM_JOB_ID'] + "/models/{}-{}.pt".format(wandb.run.name, l_epoch-2)):
+                os.remove("atles-out/" + os.environ['SLURM_JOB_ID'] + "/models/{}-{}.pt".format(wandb.run.name, l_epoch-2))
             # model_name = "single_mod-{}-{}.pt".format(epoch, lr)
             # print(wandb.run.dir)
             # torch.save(model_.state_dict(), join("./models/hcd/", model_name))
@@ -153,13 +153,14 @@ def apply_filter(filt, file_name):
 
 
 def psm_collate(batch):
-    mzs = torch.LongTensor([item[0] for item in batch])
-    ints = torch.LongTensor([item[1] for item in batch])
-    lens = torch.FloatTensor([item[2] for item in batch])
-    chars = torch.FloatTensor([item[3] for item in batch])
-    mods = torch.LongTensor([item[4] for item in batch])
-    miss_cleavs = torch.LongTensor([item[5] for item in batch])
-    return [mzs, ints, lens, chars, mods, miss_cleavs]
+    specs = torch.cat([item[0] for item in batch], 0)
+    # mzs = torch.LongTensor([item[0] for item in batch])
+    # ints = torch.LongTensor([item[1] for item in batch])
+    lens = torch.FloatTensor([item[1] for item in batch])
+    chars = torch.FloatTensor([item[2] for item in batch])
+    mods = torch.LongTensor([item[3] for item in batch])
+    miss_cleavs = torch.LongTensor([item[4] for item in batch])
+    return [specs, lens, chars, mods, miss_cleavs]
 
 # drop_prob=0.5
 # print(vocab_size)
