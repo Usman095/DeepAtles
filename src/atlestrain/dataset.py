@@ -9,6 +9,7 @@ import torch
 from torch._C import dtype
 from torch.utils import data
 from sklearn import preprocessing
+from read_spectra import decimal_to_binary_array, gray_code
 
 from src.atlesconfig import config
 from src.atlesutils import simulatespectra as sim
@@ -39,18 +40,20 @@ class SpectraDataset(data.Dataset):
 
         self.mzs = []
         self.ints = []
-        self.lens = []
+        self.masses = []
         self.charges = []
+        self.lens = []
         self.is_mods = []
         self.miss_cleavs = []
         for spec_data in data:
             # [m/z, intensity, peptide length, spectrum charge, is modified, num missed cleavages]
             self.mzs.append(spec_data[0])
             self.ints.append(spec_data[1])
-            self.lens.append(spec_data[2])
+            self.masses.append(spec_data[2])
             self.charges.append(spec_data[3])
-            self.is_mods.append(spec_data[4])
-            self.miss_cleavs.append(spec_data[5])
+            self.lens.append(spec_data[4])
+            self.is_mods.append(spec_data[5])
+            self.miss_cleavs.append(spec_data[6])
 
         num_classes = self.max_pep_len - self.min_pep_len
         class_counts = [0] * num_classes
@@ -82,16 +85,18 @@ class SpectraDataset(data.Dataset):
         torch_spec = (torch_spec - self.means) / self.stds
 
         pep_len = self.lens[index]
-        ch_vec = [0] * charge
+        ch_mass_vec = [0] * charge
         l_ch = self.charges[index]
         for ch in range(l_ch):
-            ch_vec[ch] = 1
+            ch_mass_vec[ch] = 1
 
+        bin_gray_mass = decimal_to_binary_array(gray_code(self.masses[index]), 24)
+        ch_mass_vec.extend(bin_gray_mass)
         # cleav_vec = [0, 0, 0]
         # cleav_vec[self.miss_cleavs[index]] = 1
         # print(self.miss_cleavs[index])
 
-        return torch_spec, pep_len, ch_vec, self.is_mods[index], self.miss_cleavs[index]
+        return torch_spec, ch_mass_vec, pep_len, self.is_mods[index], self.miss_cleavs[index]
         # return torch_spec, pep_len
 
 
@@ -100,3 +105,14 @@ class SpectraDataset(data.Dataset):
         zeros = [0] * (max_len - lst_len)
         return list(lst) + zeros
 
+    
+    def gray_code(num):
+        return num ^ (num >> 1)
+
+    
+    def decimal_to_binary_array(num, arr_len):
+        bin_arr = [float(i) for i in list('{0:0b}'.format(num))]
+        assert len(bin_arr) <= arr_len
+        res = [0.] * (arr_len - len(bin_arr)) + bin_arr
+        inds = [int(i) for i, _ in enumerate(res) if res[i] > 0.1] # greater than zero. 0.1 for the floating pointing errors.
+        return inds

@@ -33,7 +33,7 @@ train_accuracy = []
 test_accuracy  = []
 
 def run_par(rank, world_size):
-    model_name = "deepatles" #first k is spec size second is batch size
+    model_name = "mass-ch" #first k is spec size second is batch size
     print("Training {}.".format(model_name))
     wandb.init(project="deepatles", entity="pcds")
     wandb.run.name = "{}-{}-{}".format(model_name, os.environ['SLURM_JOB_ID'], wandb.run.id)
@@ -156,11 +156,11 @@ def psm_collate(batch):
     specs = torch.cat([item[0] for item in batch], 0)
     # mzs = torch.LongTensor([item[0] for item in batch])
     # ints = torch.LongTensor([item[1] for item in batch])
-    lens = torch.FloatTensor([item[1] for item in batch])
-    chars = torch.FloatTensor([item[2] for item in batch])
+    char_mass = torch.FloatTensor([item[1] for item in batch])
+    lens = torch.FloatTensor([item[2] for item in batch])
     mods = torch.LongTensor([item[3] for item in batch])
     miss_cleavs = torch.LongTensor([item[4] for item in batch])
-    return [specs, lens, chars, mods, miss_cleavs]
+    return [specs, char_mass, lens, mods, miss_cleavs]
 
 # drop_prob=0.5
 # print(vocab_size)

@@ -244,7 +244,7 @@ def preprocess_mgfs(mgf_dir, out_dir):
                 val = unsorts[1]
                     
                 assert len(ind) == len(val)
-                spec_out.append([ind, val, pep_len - min_pep_len, l_charge, int(num_mods > 0), missed_cleavs])
+                spec_out.append([ind, val, mass, l_charge, pep_len - min_pep_len, int(num_mods > 0), missed_cleavs])
                 len_out.append(pep_len - min_pep_len)
 
                 is_name = True

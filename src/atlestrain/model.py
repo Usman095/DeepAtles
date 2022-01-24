@@ -14,6 +14,7 @@ class Net(nn.Module):
         super(Net, self).__init__()
         self.spec_size = config.get_config(section='input', key='spec_size')
         self.charge = config.get_config(section='input', key='charge')
+        self.gray_len = 24
         self.max_spec_len = config.get_config(section='ml', key='max_spec_len')
         self.max_pep_len = config.get_config(section='ml', key='max_pep_len')
         self.min_pep_len = config.get_config(section='ml', key='min_pep_len')
@@ -41,7 +42,7 @@ class Net(nn.Module):
         self.bn3 = nn.BatchNorm1d(num_features=256)
 
         ################### Incoming branch for charge
-        self.linear_ch_1 = nn.Linear(self.charge, 128)
+        self.linear_ch_1 = nn.Linear(self.charge + self.gray_len, 128)
         self.bn_ch_1 = nn.BatchNorm1d(num_features=128)
         self.linear_ch_2 = nn.Linear(128, 256)
         self.bn_ch_2 = nn.BatchNorm1d(num_features=256)

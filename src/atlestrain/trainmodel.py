@@ -39,8 +39,8 @@ def train(model, device, train_loader, mse_loss, ce_loss, optimizer, epoch):
     for data in train_loader:
         data[0] = data[0].to(device) # spec
         # data[1] = data[1].to(device) # intensities
-        data[1] = data[1].to(device) # peptide lengths
-        data[2] = data[2].to(device) # charges
+        data[1] = data[1].to(device) # charge gray-mass
+        data[2] = data[2].to(device) # pep lens
         data[3] = data[3].to(device) # modifications
         data[4] = data[4].to(device) # missed cleavages
 
@@ -48,12 +48,12 @@ def train(model, device, train_loader, mse_loss, ce_loss, optimizer, epoch):
 
         input_mask = data[0] == 0
         # input_mask = 0
-        lens, cleavs, mods = model(data[0], data[2], input_mask)
+        lens, cleavs, mods = model(data[0], data[1], input_mask)
         lens = lens.squeeze()
         # cleavs = cleavs.squeeze()
         # print(len(cleavs))
         # print(torch.min(data[5]), torch.max(data[5]))
-        mse_loss_val = mse_loss(lens, data[1])
+        mse_loss_val = mse_loss(lens, data[2])
         ce_clv_loss_val = ce_loss(cleavs, data[4])
         ce_mod_loss_val = ce_loss(mods, data[3])
         loss = (mse_weight * mse_loss_val + ce_weight_clv * ce_clv_loss_val + \
@@ -73,9 +73,9 @@ def train(model, device, train_loader, mse_loss, ce_loss, optimizer, epoch):
         optimizer.step()
 
         # accurate_labels += multi_acc(lens, data[2])
-        accurate_labels_0 += mse_acc(lens, data[1], err=0)
-        accurate_labels_1 += mse_acc(lens, data[1], err=1)
-        accurate_labels_2 += mse_acc(lens, data[1], err=2)
+        accurate_labels_0 += mse_acc(lens, data[2], err=0)
+        accurate_labels_1 += mse_acc(lens, data[2], err=1)
+        accurate_labels_2 += mse_acc(lens, data[2], err=2)
         accurate_cleavs += multi_acc(cleavs, data[4])
         accurate_mods += multi_acc(mods, data[3])
         all_labels += len(lens)
@@ -116,17 +116,17 @@ def test(model, device, test_loader, mse_loss, ce_loss, epoch):
         for data in test_loader:
             data[0] = data[0].to(device) # spec
             # data[1] = data[1].to(device) # intensities
-            data[1] = data[1].to(device) # peptide lengths
-            data[2] = data[2].to(device) # charges
+            data[1] = data[1].to(device) # charge gray-mass
+            data[2] = data[2].to(device) # pep lens
             data[3] = data[3].to(device) # modifications
             data[4] = data[4].to(device) # missed cleavages
 
             input_mask = data[0] == 0
             # input_mask = 0
-            lens, cleavs, mods = model(data[0], data[2], input_mask)
+            lens, cleavs, mods = model(data[0], data[1], input_mask)
             lens = lens.squeeze()
             # cleavs = cleavs.squeeze()
-            mse_loss_val = mse_loss(lens, data[1])
+            mse_loss_val = mse_loss(lens, data[2])
             ce_clv_loss_val = ce_loss(cleavs, data[4])
             ce_mod_loss_val = ce_loss(mods, data[3])
             loss = (mse_weight * mse_loss_val + ce_weight_clv * ce_clv_loss_val + \
@@ -139,9 +139,9 @@ def test(model, device, test_loader, mse_loss, ce_loss, epoch):
             tot_loss += float(loss)
             
             # accurate_labels += multi_acc(lens, data[2])
-            accurate_labels_0 += mse_acc(lens, data[1], err=0)
-            accurate_labels_1 += mse_acc(lens, data[1], err=1)
-            accurate_labels_2 += mse_acc(lens, data[1], err=2)
+            accurate_labels_0 += mse_acc(lens, data[2], err=0)
+            accurate_labels_1 += mse_acc(lens, data[2], err=1)
+            accurate_labels_2 += mse_acc(lens, data[2], err=2)
             accurate_cleavs += multi_acc(cleavs, data[4])
             accurate_mods += multi_acc(mods, data[3])
             all_labels += len(lens)
