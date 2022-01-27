@@ -6,10 +6,7 @@ import pickle
 
 import numpy as np
 import torch
-from torch._C import dtype
 from torch.utils import data
-from sklearn import preprocessing
-from read_spectra import decimal_to_binary_array, gray_code
 
 from src.atlesconfig import config
 from src.atlesutils import simulatespectra as sim
@@ -90,7 +87,8 @@ class SpectraDataset(data.Dataset):
         for ch in range(l_ch):
             ch_mass_vec[ch] = 1
 
-        bin_gray_mass = decimal_to_binary_array(gray_code(self.masses[index]), 24)
+        l_mass = round(self.masses[index] * 100)
+        bin_gray_mass = self.decimal_to_binary_array(self.gray_code(l_mass), 24)
         ch_mass_vec.extend(bin_gray_mass)
         # cleav_vec = [0, 0, 0]
         # cleav_vec[self.miss_cleavs[index]] = 1
@@ -106,13 +104,13 @@ class SpectraDataset(data.Dataset):
         return list(lst) + zeros
 
     
-    def gray_code(num):
+    def gray_code(self, num):
         return num ^ (num >> 1)
 
     
-    def decimal_to_binary_array(num, arr_len):
+    def decimal_to_binary_array(self, num, arr_len):
         bin_arr = [float(i) for i in list('{0:0b}'.format(num))]
         assert len(bin_arr) <= arr_len
         res = [0.] * (arr_len - len(bin_arr)) + bin_arr
-        inds = [int(i) for i, _ in enumerate(res) if res[i] > 0.1] # greater than zero. 0.1 for the floating pointing errors.
-        return inds
+        # inds = [int(i) for i, _ in enumerate(res) if res[i] > 0.1] # greater than zero. 0.1 for the floating pointing errors.
+        return res

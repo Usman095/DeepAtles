@@ -96,7 +96,7 @@ class Net(nn.Module):
         # out = F.relu(self.bn2(self.linear1_2(out)))
         out = self.linear1_2(out)
 
-        ch_out = F.relu(self.bn_ch_1(self.linear_ch_1(chars.view(-1, self.charge))))
+        ch_out = F.relu(self.bn_ch_1(self.linear_ch_1(chars.view(-1, self.charge + self.gray_len))))
         ch_out = self.dropout(ch_out)
         ch_out = F.relu(self.bn_ch_2(self.linear_ch_2(ch_out)))
         ch_out = self.dropout(ch_out)
