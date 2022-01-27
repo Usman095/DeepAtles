@@ -63,19 +63,21 @@ def get_search_mask(spec_masses, pep_masses, tol):
 
 def runModel(loader, s_model, device):
     with torch.no_grad():
-        accurate_labels = 0
-        all_labels = 0
-        loss = 0
-        out_out = torch.Tensor().cpu()
+        lens_out = torch.Tensor().cpu()
+        cleavs_out = torch.Tensor().cpu()
+        mods_out = torch.Tensor().cpu()
         pbar = tqdm(loader, file=sys.stdout)
         pbar.set_description('Running Model...')
         # with progressbar.ProgressBar(max_value=len(loader)) as bar:
         for batch in pbar:
             batch[0], batch[1] = batch[0].to(device), batch[1].to(device)
-            out_ = s_model(batch)[0]
-            out_out = torch.cat((out_out, out_.to("cpu")), dim=0)
+            input_mask = batch[0] == 0
+            lens, cleavs, mods = s_model(batch[0], batch[1], input_mask)
+            lens_out = torch.cat((lens_out, lens.to("cpu")), dim=0)
+            cleavs_out = torch.cat((cleavs_out, cleavs.to("cpu")), dim=0)
+            mods_out = torch.cat((mods_out, mods.to("cpu")), dim=0)
             # bar.update(batch_idx)
-        return out_out
+        return lens_out, cleavs_out, mods_out
 
 
 def search(search_loader, datasets, embeddings, device):

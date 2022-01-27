@@ -20,7 +20,7 @@ def run_inference(rank, world_size):
     spec_dataset = dataset.SpectraDataset(prep_path)
     spec_loader = torch.utils.data.DataLoader(
         dataset=spec_dataset, num_workers=0, collate_fn=spec_collate,
-        batch_size=batch_size, shuffle=True
+        batch_size=batch_size, shuffle=False
     )
     
     model_name = "512-embed-2-lstm-SnapLoss2D-80k-nist-massive-no-mc-semi-r2r2r-22.pt"
@@ -32,8 +32,8 @@ def run_inference(rank, world_size):
     model_.eval()
     print(model_)
 
-    spec_filts = filter.runModel(spec_loader, model_, rank)
-
+    lens, cleavs, mods = filter.runModel(spec_loader, model_, rank)
+    
     
 
 

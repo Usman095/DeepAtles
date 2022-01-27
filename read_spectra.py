@@ -299,6 +299,183 @@ def preprocess_mgfs(mgf_dir, out_dir):
     np.save(join(out_dir, 'stds.npy'), stds)
 
 
+def preprocess_mgfs_unlabelled(mgf_dir, out_dir):
+    
+    mgf_files = verify_in_dir(mgf_dir, "mgf", [])
+    create_out_dir(out_dir, exist_ok=False)
+        
+    print('reading {} files'.format(len(mgf_files)))
+    
+    spec_size = config.get_config(section='input', key='spec_size')
+    print("spec size: {}".format(spec_size))
+    charge = config.get_config(section='input', key='charge')
+    max_pep_len = config.get_config(section='ml', key='max_pep_len')
+    min_pep_len = config.get_config(section='ml', key='min_pep_len')
+    max_spec_len = config.get_config(section='ml', key='max_spec_len')
+    test_size = config.get_config(section='ml', key='test_size')
+    
+    non_mod_c = 0
+    
+    ch = np.zeros(20)
+    lens = np.zeros(max_pep_len)
+    modified = 0
+    unmodified = 0
+    unique_pep_set = set()
+    
+    pep_spec = []
+    
+    summ = np.zeros(spec_size)
+    sq_sum = np.zeros(spec_size)
+    N = 0
+
+    spec_out = []
+    len_out = []
+    
+    tot_count = 0
+    max_peaks = max_moz = max_missed_cleavs = 0
+    for species_id, mgf_file in enumerate(mgf_files):
+        print('Reading: {}'.format(mgf_file))
+        
+        f = open(mgf_file, "r")
+        lines = f.readlines()
+        f.close()
+        
+        count = lcount = 0
+        mass_ign = 0
+        pep_len_ign = 0
+        dup_ign = 0
+
+        print('len of file: ' + str(len(lines)))
+        limit = 200000
+        pep = []
+        spec = []
+        is_name = is_mw = is_charge = False
+        prev = 0
+        i = 0
+        while i < len(lines) and limit > 0:
+            line = lines[i]
+            i += 1
+
+            if line.startswith('TITLE'):
+                scan_id = int(line.split('.')[1])
+
+            if line.startswith('PEPMASS'):
+                count += 1
+                mass = float(re.findall(r"PEPMASS=([-+]?[0-9]*\.?[0-9]*)", line)[0])
+                is_mw = True
+#                 if round(mass)*10 < spec_size:
+#                     is_mw = True
+#                     # limit = limit - 1
+#                 else:
+#                     is_name = is_mw = is_charge = False
+#                     mass_ign += 1
+#                     continue
+            
+            if is_mw and line.startswith('CHARGE'):
+                l_charge = int(re.findall(r"CHARGE=([-+]?[0-9]*\.?[0-9]*)", line)[0])
+                mass = (mass - config.PROTON) * l_charge
+                if l_charge > charge:
+                    is_name = is_mw = is_charge = False
+                    continue
+                if round(mass*10) > spec_size:
+                    is_name = is_mw = is_charge = False
+                    continue
+
+                while not isfloat(re.split(' |\t|=', lines[i])[0]):
+                    i += 1
+                
+                spec_ind = []
+                spec_val = []
+                num_peaks = 0
+                while 'END IONS' not in lines[i].upper():
+                    if lines[i] == '\n':
+                        i += 1
+                        continue
+                    mz_line = lines[i]
+                    i += 1
+                    num_peaks += 1
+                    
+                    mz_splits = re.split(' |\t', mz_line)
+                    moz = round(float(mz_splits[0]) * 10) # 32 because charge is len 8 and mass is len 24
+                    intensity = math.sqrt(float(mz_splits[1]) + 1.0) # adding 1 to avoid sqrt of zero
+                    if moz > max_moz:
+                        max_moz = moz
+                    if 0 < moz < spec_size:
+                        # spec[round(moz*10)] += round(intensity)
+                        if spec_ind and spec_ind[-1] == moz:
+                            spec_val[-1] = max(intensity, spec_val[-1])
+                        else:
+                            spec_ind.append(moz)
+                            spec_val.append(intensity) # adding one to avoid sqrt of zero
+                if num_peaks < 15:
+                    is_name = is_mw = is_charge = False
+                    continue
+                
+                spec_ind = np.array(spec_ind)
+                spec_val = np.array(spec_val)
+                spec_val = ((spec_val / np.amax(spec_val)) * 100).astype(int)
+
+                summ[spec_ind] += spec_val
+                sq_sum[spec_ind] += spec_val**2
+                N += 1
+
+                ind = list(spec_ind)
+                val = list(spec_val)
+
+                sorts = list(zip(*(sorted(zip(ind, val), key=lambda x: x[1], reverse=True)))) # sort by intensity
+                sorts[0], sorts[1] = sorts[0][:max_spec_len], sorts[1][:max_spec_len] # select top intensity peaks
+                unsorts = list(zip(*(sorted(zip(sorts[0], sorts[1]), key=lambda x: x[0])))) # sorty back using m/z
+                ind = unsorts[0]
+                val = unsorts[1]
+                    
+                assert len(ind) == len(val)
+                spec_out.append([ind, val, mass, l_charge])
+
+                is_charge = True
+
+            if is_name and is_mw and is_charge:
+                is_name = is_mw = is_charge = False
+                lcount += 1
+                
+                pep = 0
+                spec = []
+                new = int((i / len(lines)) * 100)
+                if new >= prev + 10:
+                    #clear_output(wait=True)
+                    print('count: ' + str(lcount))
+                    print(str(new) + '%')
+                    prev = new
+
+        #print('max peaks: ' + str(max_peaks))
+        print('In current file, read {} out of {}'.format(lcount, count))
+        print("Ignored: large mass: {}, pep len: {}, dup: {}".format(mass_ign, pep_len_ign, dup_ign))
+        print('overall running count: ' + str(tot_count))
+        print('max moz: ' + str(max_moz))
+    
+    with open(join(out_dir, 'specs.pkl'), 'wb') as f:
+        pickle.dump(spec_out, f)
+
+    print("Statistics:")
+    print("Max Missed Cleaveages: {}".format(max_missed_cleavs))
+    print("Charge distribution:")
+    print(ch)
+    print("Peptide Length Distribution:")
+    print(lens)
+    print("Modified:\t{}".format(modified))
+    print("Unmodified:\t{}".format(unmodified))
+    print("Unique Peptides:\t{}".format(len(unique_pep_set)))
+    print("Sum: {}".format(summ))
+    print("Sum-Squared: {}".format(sq_sum))
+    print("N: {}".format(N))
+    means = summ / N
+    print("mean: {}".format(means))
+    stds = np.sqrt((sq_sum / N) - means**2)
+    stds[stds < 0.0000001] = float("inf")
+    print("std: {}".format(stds))
+    np.save(join(out_dir, 'means.npy'), means)
+    np.save(join(out_dir, 'stds.npy'), stds)
+
+
 if __name__ == '__main__':
     mgf_dir = config.get_config(section='input', key='mgf_dir')
     prep_dir = config.get_config(section='input', key='prep_dir')
