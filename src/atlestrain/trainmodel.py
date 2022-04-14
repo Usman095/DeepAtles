@@ -112,6 +112,8 @@ def test(model, device, test_loader, mse_loss, ce_loss, epoch):
         accurate_labels_0 = accurate_labels_1 = accurate_labels_2 = 0
         all_labels = 0
         tot_mse_loss = tot_ce_clv_loss = tot_ce_mod_loss = tot_loss = 0
+        pred_lens, pred_cleavs, pred_mods = [], [], []
+        labl_lens, labl_cleavs, labl_mods = [], [], []
         # with progressbar.ProgressBar(max_value=len(train_loader)) as p_bar:
         for data in test_loader:
             data[0] = data[0].to(device) # spec
@@ -125,6 +127,8 @@ def test(model, device, test_loader, mse_loss, ce_loss, epoch):
             # input_mask = 0
             lens, cleavs, mods = model(data[0], data[1], input_mask)
             lens = lens.squeeze()
+            pred_lens.extend(lens.tolist()), pred_cleavs.extend(cleavs.tolist()), pred_mods.extend(mods.tolist())
+            labl_lens.extend(data[2].tolist()), labl_cleavs.extend(data[4].tolist()), labl_mods.extend(data[3].tolist())
             # cleavs = cleavs.squeeze()
             mse_loss_val = mse_loss(lens, data[2])
             ce_clv_loss_val = ce_loss(cleavs, data[4])
@@ -166,13 +170,16 @@ def test(model, device, test_loader, mse_loss, ce_loss, epoch):
         print('Test accuracy Clvs:\t{}/{} ({:.3f}%)\t\tLoss: {:.6f}'.format(accurate_cleavs, all_labels, accuracy_cleavs, tot_ce_clv_loss/len(test_loader)))
         print('Test accuracy Mods:\t{}/{} ({:.3f}%)\t\tLoss: {:.6f}'.format(accurate_mods, all_labels, accuracy_mods, tot_ce_mod_loss/len(test_loader)))
         print('Total Loss:\t{}'.format(tot_loss/len(test_loader)))
-        return loss
+        return loss, torch.tensor(pred_lens), torch.tensor(labl_lens), torch.tensor(pred_cleavs),\
+            torch.tensor(labl_cleavs), torch.tensor(pred_mods), torch.tensor(labl_mods)
+
+
 # TODO: change it. taken from 
 # https://towardsdatascience.com/pytorch-tabular-multiclass-classification-9f8211a123ab
 # accessed: 09/18/2020
 def multi_acc(y_pred, y_test):
     y_pred_softmax = torch.log_softmax(y_pred, dim = 1)
-    _, y_pred_tags = torch.max(y_pred_softmax, dim = 1)    
+    _, y_pred_tags = torch.max(y_pred_softmax, dim = 1)
     
     correct_pred = (y_pred_tags == y_test).float().sum()
     

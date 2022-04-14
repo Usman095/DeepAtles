@@ -58,8 +58,14 @@ class PeptideDataset(data.Dataset):
         self.prot_list         = all_sorts[1]
         self.pep_mass_list     = all_sorts[2]
         self.pep_modified_list = all_sorts[3]
+        self.missed_cleavs     = []
+        for pep in self.pep_list:
+            miss_clvs = (pep.count("K") + pep.count("R")) - (pep.count("KP") + pep.count("RP"))
+            if pep[-1] == 'K' or pep[-1] == 'R':
+                miss_clvs -= 1
+            self.missed_cleavs.append(miss_clvs)
         if decoy:
-            self.pep_list, self.prot_list, self.pep_mass_list, self.pep_modified_list = self.get_docoys()
+            self.pep_list, self.prot_list, self.pep_mass_list, self.pep_modified_list, self.missed_cleavs = self.get_docoys()
             
         print('Peptide Dataset Size: {}'.format(len(self.pep_list)))
         
@@ -90,11 +96,14 @@ class PeptideDataset(data.Dataset):
         return out
     
     def get_docoys(self):
-        decoy_list = []
-        decoy_prot_list = []
-        decoy_mass_list = []
+        decoy_list          = []
+        decoy_prot_list     = []
+        decoy_mass_list     = []
         decoy_modified_list = []
-        for pep, prot, mass, modified in zip(self.pep_list, self.prot_list, self.pep_mass_list, self.pep_modified_list):
+        decoy_miss_clvs     = []
+        for pep, prot, mass, modified, miss_clv in zip(
+            self.pep_list, self.prot_list, self.pep_mass_list, self.pep_modified_list, self.missed_cleavs):
+            
             pep_parts = re.findall(r"([A-Z][a-z]?)", pep)
             decoy_pep = pep_parts[0] + "".join(pep_parts[-2:0:-1]) + pep_parts[-1]
             if decoy_pep not in self.pep_lst_set:
@@ -102,7 +111,8 @@ class PeptideDataset(data.Dataset):
                 decoy_prot_list.append(prot)
                 decoy_mass_list.append(mass)
                 decoy_modified_list.append(modified)
-        return decoy_list, decoy_prot_list, decoy_mass_list, decoy_modified_list
+                decoy_miss_clvs.append(miss_clv)
+        return decoy_list, decoy_prot_list, decoy_mass_list, decoy_modified_list, decoy_miss_clvs
 
 
 ### These are not class functions. Use them normally. ###

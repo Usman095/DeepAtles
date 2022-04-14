@@ -26,14 +26,21 @@ def get_rand_mod(seq, num_mods=1):
     return res
 
 
+def pad_right(lst, max_len):
+        lst_len = len(lst)
+        zeros = [0] * (max_len - lst_len)
+        return list(lst) + zeros
+
+    
 def gray_code(num):
     return num ^ (num >> 1)
 
-
+    
 def decimal_to_binary_array(num, arr_len):
     bin_arr = [float(i) for i in list('{0:0b}'.format(num))]
     assert len(bin_arr) <= arr_len
-    res = [0] * (arr_len - len(bin_arr)) + bin_arr
+    res = [0.] * (arr_len - len(bin_arr)) + bin_arr
+    # inds = [int(i) for i, _ in enumerate(res) if res[i] > 0.1] # greater than zero. 0.1 for the floating pointing errors.
     return res
 
 

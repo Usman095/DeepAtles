@@ -71,8 +71,8 @@ class SpectraDataset(data.Dataset):
         'Generates one sample of data'
         max_spec_len = config.get_config(section='ml', key='max_spec_len')
         charge = config.get_config(section='input', key='charge')
-        spec_mz = self.pad_right(self.mzs[index], max_spec_len)
-        spec_intensity = self.pad_right(self.ints[index], max_spec_len)
+        spec_mz = sim.pad_right(self.mzs[index], max_spec_len)
+        spec_intensity = sim.pad_right(self.ints[index], max_spec_len)
 
         ind = torch.LongTensor([[0]*len(spec_mz), spec_mz])
         val = torch.FloatTensor(spec_intensity)
@@ -88,7 +88,7 @@ class SpectraDataset(data.Dataset):
             ch_mass_vec[ch] = 1
 
         l_mass = round(self.masses[index] * 100)
-        bin_gray_mass = self.decimal_to_binary_array(self.gray_code(l_mass), 24)
+        bin_gray_mass = sim.decimal_to_binary_array(sim.gray_code(l_mass), 24)
         ch_mass_vec.extend(bin_gray_mass)
         # cleav_vec = [0, 0, 0]
         # cleav_vec[self.miss_cleavs[index]] = 1
@@ -96,21 +96,4 @@ class SpectraDataset(data.Dataset):
 
         return torch_spec, ch_mass_vec, pep_len, self.is_mods[index], self.miss_cleavs[index]
         # return torch_spec, pep_len
-
-
-    def pad_right(self, lst, max_len):
-        lst_len = len(lst)
-        zeros = [0] * (max_len - lst_len)
-        return list(lst) + zeros
-
-    
-    def gray_code(self, num):
-        return num ^ (num >> 1)
-
-    
-    def decimal_to_binary_array(self, num, arr_len):
-        bin_arr = [float(i) for i in list('{0:0b}'.format(num))]
-        assert len(bin_arr) <= arr_len
-        res = [0.] * (arr_len - len(bin_arr)) + bin_arr
-        # inds = [int(i) for i, _ in enumerate(res) if res[i] > 0.1] # greater than zero. 0.1 for the floating pointing errors.
-        return res
+        

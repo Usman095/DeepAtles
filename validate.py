@@ -81,16 +81,46 @@ def run_par(rank, world_size):
 
     model_ = model.Net().to(rank)
     model_ = apex.parallel.DistributedDataParallel(model_)
-    model_.load_state_dict(torch.load("atles-out/15193090/models/deepatles-15193090-1nq92avm-447.pt")["model_state_dict"])
+    # model_.load_state_dict(torch.load("atles-out/15193090/models/deepatles-15193090-1nq92avm-447.pt")["model_state_dict"])
+    model_.load_state_dict(torch.load("atles-out/16403437/models/pt-mass-ch-16403437-1toz70vi-472.pt")["model_state_dict"])
 
     start_time = timeit.default_timer()
-    trainmodel.test(model_, rank, val_loader, mse_loss, ce_loss, 0)
+    
+    _, pred_lens, labl_lens, pred_cleavs, labl_cleavs, pred_mods, labl_mods =\
+         trainmodel.test(model_, rank, val_loader, mse_loss, ce_loss, 0)
+    
+    pred_lens, labl_lens = torch.round(pred_lens), torch.round(labl_lens)
+    pred_cleavs, labl_cleavs = multi_class(pred_cleavs, labl_cleavs)
+    pred_mods, labl_mods = multi_class(pred_mods, labl_mods)
+
+    torch.save(pred_lens, "pred_lens.pt")
+    torch.save(labl_lens, "labl_lens.pt")
+    torch.save(pred_cleavs, "pred_cleavs.pt")
+    torch.save(labl_cleavs, "labl_cleavs.pt")
+    torch.save(pred_mods, "pred_mods.pt")
+    torch.save(labl_mods, "labl_mods.pt")
+    print(pred_lens.size())
+    print(labl_lens.size())
+    print(pred_cleavs.size())
+    print(labl_cleavs.size())
+    print(pred_mods.size())
+    print(labl_mods.size())
+
     elapsed = timeit.default_timer() - start_time
     print("time takes: {} secs.".format(elapsed))
 
     dist.barrier()
-    
     main.cleanup()
+
+
+def multi_class(y_pred, y_test):
+    y_pred_softmax = torch.log_softmax(y_pred, dim = 1)
+    _, y_pred_tags = torch.max(y_pred_softmax, dim = 1)    
+    return y_pred_tags, y_test
+
+
+def round_lens(y_pred, y_test, err=0):
+    return torch.round(y_pred), torch.round(y_test)
 
 
 if __name__ == '__main__':

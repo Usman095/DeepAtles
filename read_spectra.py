@@ -94,6 +94,7 @@ def preprocess_mgfs(mgf_dir, out_dir):
     min_pep_len = config.get_config(section='ml', key='min_pep_len')
     max_spec_len = config.get_config(section='ml', key='max_spec_len')
     test_size = config.get_config(section='ml', key='test_size')
+    max_clvs = config.get_config(section='ml', key='max_clvs')
     
     non_mod_c = 0
     
@@ -102,6 +103,8 @@ def preprocess_mgfs(mgf_dir, out_dir):
     modified = 0
     unmodified = 0
     unique_pep_set = set()
+
+    clvs_dist = np.zeros(max_clvs + 1)
     
     pep_spec = []
     
@@ -114,7 +117,7 @@ def preprocess_mgfs(mgf_dir, out_dir):
     
     tot_count = 0
     max_peaks = max_moz = max_missed_cleavs = 0
-    for species_id, mgf_file in enumerate(mgf_files):
+    for file_id, mgf_file in enumerate(mgf_files):
         print('Reading: {}'.format(mgf_file))
         
         f = open(mgf_file, "r")
@@ -130,14 +133,18 @@ def preprocess_mgfs(mgf_dir, out_dir):
         limit = 200000
         pep = []
         spec = []
-        is_name = is_mw = is_charge = False
+        is_title = is_name = is_mw = is_charge = False
         prev = 0
         i = 0
         while i < len(lines) and limit > 0:
             line = lines[i]
             i += 1
 
-            if line.startswith('PEPMASS'):
+            if line.startswith('TITLE'):
+                scan_id = int(line.split('.')[-3])
+                is_title = True
+
+            if is_title and line.startswith('PEPMASS'):
                 count += 1
                 mass = float(re.findall(r"PEPMASS=([-+]?[0-9]*\.?[0-9]*)", line)[0])
                 is_mw = True
@@ -149,18 +156,15 @@ def preprocess_mgfs(mgf_dir, out_dir):
 #                     mass_ign += 1
 #                     continue
             
-            if is_mw and line.startswith('CHARGE'):
+            if is_title and is_mw and line.startswith('CHARGE'):
                 l_charge = int(re.findall(r"CHARGE=([-+]?[0-9]*\.?[0-9]*)", line)[0])
                 mass = (mass - config.PROTON) * l_charge
                 is_charge = True
-                if l_charge > charge:
-                    is_name = is_mw = is_charge = False
-                    continue
-                if round(mass*10) > spec_size:
-                    is_name = is_mw = is_charge = False
+                if l_charge > charge or round(mass*10) > spec_size:
+                    is_title = is_name = is_mw = is_charge = False
                     continue
                 
-            if is_mw and is_charge and line.startswith("SEQ"):
+            if is_title and is_mw and is_charge and line.startswith("SEQ"):
                 line = re.sub(r"[()]", "", line.strip()).split('=')[-1]
                 mod_repl_rex = r'([-+]?\d*\.\d+|[-+]?\d+)'
                 pep, num_mods = re.subn(mod_repl_rex, mod_repl, line)
@@ -168,9 +172,10 @@ def preprocess_mgfs(mgf_dir, out_dir):
                 missed_cleavs = (pep.count("K") + pep.count("R")) - (pep.count("KP") + pep.count("RP"))
                 if pep[-1] == 'K' or pep[-1] == 'R':
                     missed_cleavs -= 1
-                if missed_cleavs > 2:
-                    is_name = is_mw = is_charge = False
+                if missed_cleavs > max_clvs:
+                    is_title = is_name = is_mw = is_charge = False
                     continue
+                clvs_dist[missed_cleavs] += 1
                 num_mods -= len(re.findall("c", pep))
 #                 max_missed_cleavs = max(missed_cleavs, max_missed_cleavs)
                     
@@ -181,7 +186,7 @@ def preprocess_mgfs(mgf_dir, out_dir):
                 #if len(pep) + 2 > seq_len or "O" in pep or "U" in pep or re.search(r"([a-z]{2,})", pep) or not mod_filt(pep, mods, count):
                 if pep_len >= max_pep_len or pep_len < min_pep_len or "O" in pep or "U" in pep or re.search(r"([a-z]{2,})", pep):
                     pep_len_ign += 1
-                    is_name = is_mw = is_charge = False
+                    is_title = is_name = is_mw = is_charge = False
                     continue
                 
                 ch[l_charge] += 1
@@ -223,7 +228,7 @@ def preprocess_mgfs(mgf_dir, out_dir):
                             spec_ind.append(moz)
                             spec_val.append(intensity) # adding one to avoid sqrt of zero
                 if num_peaks < 15:
-                    is_name = is_mw = is_charge = False
+                    is_title = is_name = is_mw = is_charge = False
                     continue
                 
                 spec_ind = np.array(spec_ind)
@@ -249,8 +254,8 @@ def preprocess_mgfs(mgf_dir, out_dir):
 
                 is_name = True
 
-            if is_name and is_mw and is_charge:
-                is_name = is_mw = is_charge = False
+            if is_title and is_name and is_mw and is_charge:
+                is_title = is_name = is_mw = is_charge = False
                 lcount += 1
                 
                 pep = 0
@@ -287,6 +292,7 @@ def preprocess_mgfs(mgf_dir, out_dir):
     print("Modified:\t{}".format(modified))
     print("Unmodified:\t{}".format(unmodified))
     print("Unique Peptides:\t{}".format(len(unique_pep_set)))
+    print("Cleavage distribution:\t{}".format(clvs_dist))
     print("Sum: {}".format(summ))
     print("Sum-Squared: {}".format(sq_sum))
     print("N: {}".format(N))
@@ -333,7 +339,7 @@ def preprocess_mgfs_unlabelled(mgf_dir, out_dir):
     
     tot_count = 0
     max_peaks = max_moz = max_missed_cleavs = 0
-    for species_id, mgf_file in enumerate(mgf_files):
+    for file_id, mgf_file in enumerate(mgf_files):
         print('Reading: {}'.format(mgf_file))
         
         f = open(mgf_file, "r")
@@ -349,7 +355,7 @@ def preprocess_mgfs_unlabelled(mgf_dir, out_dir):
         limit = 200000
         pep = []
         spec = []
-        is_name = is_mw = is_charge = False
+        is_title = is_name = is_mw = is_charge = False
         prev = 0
         i = 0
         while i < len(lines) and limit > 0:
@@ -357,9 +363,11 @@ def preprocess_mgfs_unlabelled(mgf_dir, out_dir):
             i += 1
 
             if line.startswith('TITLE'):
-                scan_id = int(line.split('.')[1])
+                split_len = len(line.split('.'))
+                scan_id = int(line.split('.')[-3]) if split_len >= 3 else int(line.split('=')[-1])
+                is_title = True
 
-            if line.startswith('PEPMASS'):
+            if is_title and line.startswith('PEPMASS'):
                 count += 1
                 mass = float(re.findall(r"PEPMASS=([-+]?[0-9]*\.?[0-9]*)", line)[0])
                 is_mw = True
@@ -371,14 +379,11 @@ def preprocess_mgfs_unlabelled(mgf_dir, out_dir):
 #                     mass_ign += 1
 #                     continue
             
-            if is_mw and line.startswith('CHARGE'):
+            if is_title and is_mw and line.startswith('CHARGE'):
                 l_charge = int(re.findall(r"CHARGE=([-+]?[0-9]*\.?[0-9]*)", line)[0])
                 mass = (mass - config.PROTON) * l_charge
-                if l_charge > charge:
-                    is_name = is_mw = is_charge = False
-                    continue
-                if round(mass*10) > spec_size:
-                    is_name = is_mw = is_charge = False
+                if l_charge > charge or round(mass*10) > spec_size:
+                    is_title = is_name = is_mw = is_charge = False
                     continue
 
                 while not isfloat(re.split(' |\t|=', lines[i])[0]):
@@ -408,7 +413,7 @@ def preprocess_mgfs_unlabelled(mgf_dir, out_dir):
                             spec_ind.append(moz)
                             spec_val.append(intensity) # adding one to avoid sqrt of zero
                 if num_peaks < 15:
-                    is_name = is_mw = is_charge = False
+                    is_title = is_name = is_mw = is_charge = False
                     continue
                 
                 spec_ind = np.array(spec_ind)
@@ -429,12 +434,12 @@ def preprocess_mgfs_unlabelled(mgf_dir, out_dir):
                 val = unsorts[1]
                     
                 assert len(ind) == len(val)
-                spec_out.append([ind, val, mass, l_charge])
+                spec_out.append(['{}-{}'.format(file_id, scan_id), ind, val, mass, l_charge])
 
                 is_charge = True
 
-            if is_name and is_mw and is_charge:
-                is_name = is_mw = is_charge = False
+            if is_title and is_mw and is_charge:
+                is_title = is_mw = is_charge = False
                 lcount += 1
                 
                 pep = 0
@@ -479,5 +484,8 @@ def preprocess_mgfs_unlabelled(mgf_dir, out_dir):
 if __name__ == '__main__':
     mgf_dir = config.get_config(section='input', key='mgf_dir')
     prep_dir = config.get_config(section='input', key='prep_dir')
+    preprocess_mgfs_unlabelled(mgf_dir, prep_dir)
 
-    preprocess_mgfs(mgf_dir, prep_dir)
+    # mgf_dir = config.get_config(section='search', key='mgf_dir')
+    # prep_dir = config.get_config(section='search', key='prep_path')
+    # preprocess_mgfs_unlabelled(mgf_dir, prep_dir)

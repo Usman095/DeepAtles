@@ -37,14 +37,20 @@ class SpectraDataset(data.Dataset):
         self.min_pep_len = config.get_config(section='ml', key='min_pep_len')
         self.spec_size = config.get_config(section='input', key='spec_size')
 
+        data = sorted(data, key=lambda x: x[3])
+        
+        self.scan_ids = []
         self.mzs = []
         self.ints = []
         self.charges = []
+        self.masses = []
         for spec_data in data:
             # [m/z, intensity, peptide length, spectrum charge, is modified, num missed cleavages]
-            self.mzs.append(spec_data[0])
-            self.ints.append(spec_data[1])
-            self.charges.append(spec_data[2])
+            self.scan_ids.append(spec_data[0])
+            self.mzs.append(spec_data[1])
+            self.ints.append(spec_data[2])
+            self.masses.append(spec_data[3])
+            self.charges.append(spec_data[4])
         
         print('dataset size: {}'.format(len(data)))
         
@@ -58,8 +64,8 @@ class SpectraDataset(data.Dataset):
         'Generates one sample of data'
         max_spec_len = config.get_config(section='ml', key='max_spec_len')
         charge = config.get_config(section='input', key='charge')
-        spec_mz = self.pad_right(self.mzs[index], max_spec_len)
-        spec_intensity = self.pad_right(self.ints[index], max_spec_len)
+        spec_mz = sim.pad_right(self.mzs[index], max_spec_len)
+        spec_intensity = sim.pad_right(self.ints[index], max_spec_len)
 
         ind = torch.LongTensor([[0]*len(spec_mz), spec_mz])
         val = torch.FloatTensor(spec_intensity)
@@ -68,20 +74,20 @@ class SpectraDataset(data.Dataset):
             ind, val, torch.Size([1, self.spec_size])).to_dense()
         torch_spec = (torch_spec - self.means) / self.stds
 
-        ch_vec = [0] * charge
+        ch_mass_vec = [0] * charge
         l_ch = self.charges[index]
         for ch in range(l_ch):
-            ch_vec[ch] = 1
+            ch_mass_vec[ch] = 1
+
+        l_mass = round(self.masses[index] * 100)
+        bin_gray_mass = sim.decimal_to_binary_array(sim.gray_code(l_mass), 24)
+        ch_mass_vec.extend(bin_gray_mass)
 
         # cleav_vec = [0, 0, 0]
         # cleav_vec[self.miss_cleavs[index]] = 1
         # print(self.miss_cleavs[index])
 
-        return torch_spec, ch_vec
+        # return self.scan_ids[index], torch_spec, ch_mass_vec
+        return torch_spec, ch_mass_vec
         # return torch_spec, pep_len
-
-
-    def pad_right(self, lst, max_len):
-        lst_len = len(lst)
-        zeros = [0] * (max_len - lst_len)
-        return list(lst) + zeros
+        

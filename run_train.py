@@ -33,7 +33,7 @@ train_accuracy = []
 test_accuracy  = []
 
 def run_par(rank, world_size):
-    model_name = "mass-ch" #first k is spec size second is batch size
+    model_name = "pt-mass-ch" #first k is spec size second is batch size
     print("Training {}.".format(model_name))
     wandb.init(project="deepatles", entity="pcds")
     wandb.run.name = "{}-{}-{}".format(model_name, os.environ['SLURM_JOB_ID'], wandb.run.id)
