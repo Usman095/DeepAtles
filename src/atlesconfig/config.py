@@ -39,8 +39,8 @@ ModCHAR = OrderedDict([("15.99", "o"), ("57.02", "c")
 # ModCHAR = {"15.99": "o", "0.98": "h", "57.02": "c", "42.01": "a", "-17.03": "r", "79.97": "p"}
 Ignore = ["U", "X"]
 Mods = [#{"mod_char": "p", "aas": ["S", "T", "Y"]}
-        #{"mod_char": "o", "aas": ["M"]}
-        {"mod_char": "a", "aas": ["nt"]}
+        {"mod_char": "o", "aas": ["M"]}
+        #{"mod_char": "a", "aas": ["nt"]}
         ]
 H2O = 18.010564683
 NH3 = 17.031

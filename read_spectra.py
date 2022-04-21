@@ -141,7 +141,8 @@ def preprocess_mgfs(mgf_dir, out_dir):
             i += 1
 
             if line.startswith('TITLE'):
-                scan_id = int(line.split('.')[-3])
+                split_len = len(line.split('.'))
+                scan_id = int(line.split('.')[-3]) if split_len >= 3 else int(line.split('=')[-1])
                 is_title = True
 
             if is_title and line.startswith('PEPMASS'):
@@ -484,7 +485,7 @@ def preprocess_mgfs_unlabelled(mgf_dir, out_dir):
 if __name__ == '__main__':
     mgf_dir = config.get_config(section='input', key='mgf_dir')
     prep_dir = config.get_config(section='input', key='prep_dir')
-    preprocess_mgfs_unlabelled(mgf_dir, prep_dir)
+    preprocess_mgfs(mgf_dir, prep_dir)
 
     # mgf_dir = config.get_config(section='search', key='mgf_dir')
     # prep_dir = config.get_config(section='search', key='prep_path')

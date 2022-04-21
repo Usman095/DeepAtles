@@ -13,13 +13,13 @@ import apex
 
 from src.atlesconfig import config
 from src.atlestrain import dataset, model
-from src.atlespredict import dbsearch, specdataset, pepdataset, preprocess, postprocess
+from src.atlespredict import dbsearch, specdataset, pepdataset, preprocess, postprocess, specollate_model
 
 
 def run_atles(rank, world_size, spec_loader):
     model_ = model.Net().to(rank)
     model_ = nn.parallel.DistributedDataParallel(model_, device_ids=[rank])
-    model_.load_state_dict(torch.load('atles-out/15193090/models/deepatles-15193090-1nq92avm-250.pt')['model_state_dict'])
+    model_.load_state_dict(torch.load('atles-out/16403437/models/pt-mass-ch-16403437-1toz70vi-472.pt')['model_state_dict'])
     model_ = model_.module
     model_.eval()
     print(model_)
@@ -79,14 +79,14 @@ def run_specollate_par(rank, world_size):
     model_name = "512-embed-2-lstm-SnapLoss2D-80k-nist-massive-no-mc-semi-r2r-18.pt" # 28.975k
     model_name = "512-embed-2-lstm-SnapLoss2D-80k-nist-massive-no-mc-semi-r2r2r-22.pt"
     print("Using model: {}".format(model_name))
-    snap_model = model.Net(vocab_size=30, embedding_dim=512, hidden_lstm_dim=512, lstm_layers=2).to(rank)
+    snap_model = specollate_model.Net(vocab_size=30, embedding_dim=512, hidden_lstm_dim=512, lstm_layers=2).to(rank)
     snap_model = nn.parallel.DistributedDataParallel(snap_model, device_ids=[rank])
     # snap_model.load_state_dict(torch.load('models/32-embed-2-lstm-SnapLoss2-noch-3k-1k-152.pt')['model_state_dict'])
     # below one has 26975 identified peptides.
     # snap_model.load_state_dict(torch.load('models/512-embed-2-lstm-SnapLoss-noch-80k-nist-massive-52.pt')['model_state_dict'])
     # below one has 27.5k peps
     # snap_model.load_state_dict(torch.load('models/hcd/512-embed-2-lstm-SnapLoss2D-inputCharge-80k-nist-massive-116.pt')['model_state_dict'])
-    snap_model.load_state_dict(torch.load('models/hcd/{}'.format(model_name))['model_state_dict'])
+    snap_model.load_state_dict(torch.load('specollate-model/{}'.format(model_name))['model_state_dict'])
     snap_model = snap_model.module
     snap_model.eval()
     print(snap_model)
