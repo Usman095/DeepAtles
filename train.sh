@@ -1,11 +1,10 @@
 #!/bin/bash
 #SBATCH --job-name="atles-hpg-atles"
 #SBATCH --output="atles-out/bak/atles.%j.%N.out"
-#SBATCH --partition=gpu
 #SBATCH --nodes=1
-#SBATCH --gpus=a100:1
-#SBATCH --ntasks-per-node=32
-#SBATCH --mem=250gb
+#SBATCH --gpus=1
+#SBATCH --ntasks-per-node=10
+#SBATCH --mem=92gb
 #SBATCH --account=fsaeed
 #SBATCH --no-requeue
 #SBATCH -t 72:00:00

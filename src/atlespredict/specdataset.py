@@ -53,7 +53,7 @@ class SpectraDataset(data.Dataset):
             self.charges.append(spec_data[4])
         
         print('dataset size: {}'.format(len(data)))
-        
+
 
     def __len__(self):
         'Denotes the total number of samples'
@@ -67,7 +67,7 @@ class SpectraDataset(data.Dataset):
         spec_mz = sim.pad_right(self.mzs[index], max_spec_len)
         spec_intensity = sim.pad_right(self.ints[index], max_spec_len)
 
-        ind = torch.LongTensor([[0]*len(spec_mz), spec_mz])
+        ind = torch.LongTensor([[0] * len(spec_mz), spec_mz])
         val = torch.FloatTensor(spec_intensity)
         
         torch_spec = torch.sparse_coo_tensor(
@@ -90,4 +90,3 @@ class SpectraDataset(data.Dataset):
         # return self.scan_ids[index], torch_spec, ch_mass_vec
         return torch_spec, ch_mass_vec
         # return torch_spec, pep_len
-        

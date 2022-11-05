@@ -4,7 +4,7 @@ import shutil
 from os import listdir
 import re
 import math
-import pickle
+import pickle 
 
 import numpy as np
 from sklearn.model_selection import train_test_split
@@ -483,10 +483,10 @@ def preprocess_mgfs_unlabelled(mgf_dir, out_dir):
 
 
 if __name__ == '__main__':
-    mgf_dir = config.get_config(section='input', key='mgf_dir')
-    prep_dir = config.get_config(section='input', key='prep_dir')
-    preprocess_mgfs(mgf_dir, prep_dir)
+    # mgf_dir = config.get_config(section='input', key='mgf_dir')
+    # prep_dir = config.get_config(section='input', key='prep_dir')
+    # preprocess_mgfs(mgf_dir, prep_dir)
 
-    # mgf_dir = config.get_config(section='search', key='mgf_dir')
-    # prep_dir = config.get_config(section='search', key='prep_path')
-    # preprocess_mgfs_unlabelled(mgf_dir, prep_dir)
+    mgf_dir = config.get_config(section='search', key='mgf_dir')
+    prep_dir = config.get_config(section='search', key='prep_path')
+    preprocess_mgfs_unlabelled(mgf_dir, prep_dir)
