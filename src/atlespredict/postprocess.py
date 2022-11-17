@@ -11,6 +11,7 @@ def generate_percolator_input(l_pep_inds, l_pep_vals, l_spec_inds, pd_dataset, s
     tot_count = 0
     max_snap = torch.max(l_pep_vals).item()
     for l_spec_idx, pep_inds_row, pep_vals_row in zip(l_spec_inds, l_pep_inds, l_pep_vals):
+        l_spec_idx = l_spec_idx.item()
         # Reminder: pep_inds_row length is one less than pep_vals_row
         for iidx in range(len(pep_inds_row) - 1):
             pep_ind = pep_inds_row[iidx]

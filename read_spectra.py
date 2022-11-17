@@ -4,7 +4,7 @@ import shutil
 from os import listdir
 import re
 import math
-import pickle 
+import pickle
 
 import numpy as np
 from sklearn.model_selection import train_test_split
@@ -30,9 +30,11 @@ def verify_in_dir(dir_path, ext, ignore_list):
     in_path = Path(dir_path)
     assert in_path.exists() and in_path.is_dir()
     
-    files = [join(dir_path, f) for f in listdir(dir_path) if
-                 isfile(join(dir_path, f)) and not f.startswith('.') 
-                 and f.split('.')[-1] == ext and f not in ignore_list]
+    files = [
+        join(dir_path, f) for f in listdir(dir_path) if
+        isfile(join(dir_path, f)) and not f.startswith('.')
+        and f.split('.')[-1] == ext and f not in ignore_list
+    ]
     assert len(files) > 0
     return files
 
@@ -41,7 +43,7 @@ def isfloat(str_float):
     try:
         float(str_float)
         return True
-    except ValueError: 
+    except ValueError:
         return False
 
 
@@ -75,7 +77,8 @@ def decimal_to_binary_array(num, arr_len):
     bin_arr = [float(i) for i in list('{0:0b}'.format(num))]
     assert len(bin_arr) <= arr_len
     res = [0.] * (arr_len - len(bin_arr)) + bin_arr
-    inds = [int(i) for i, _ in enumerate(res) if res[i] > 0.1] # greater than zero. 0.1 for the floating pointing errors.
+    # greater than zero. 0.1 for the floating pointing errors.
+    inds = [int(i) for i, _ in enumerate(res) if res[i] > 0.1]
     vals = [1.0] * len(inds)
     return inds, vals
 
@@ -161,7 +164,7 @@ def preprocess_mgfs(mgf_dir, out_dir):
                 l_charge = int(re.findall(r"CHARGE=([-+]?[0-9]*\.?[0-9]*)", line)[0])
                 mass = (mass - config.PROTON) * l_charge
                 is_charge = True
-                if l_charge > charge or round(mass*10) > spec_size:
+                if l_charge > charge or round(mass * 10) > spec_size:
                     is_title = is_name = is_mw = is_charge = False
                     continue
                 
@@ -184,8 +187,11 @@ def preprocess_mgfs(mgf_dir, out_dir):
 #                     print(pep)
                 mods = ["p", "o"]
                 count = 3
-                #if len(pep) + 2 > seq_len or "O" in pep or "U" in pep or re.search(r"([a-z]{2,})", pep) or not mod_filt(pep, mods, count):
-                if pep_len >= max_pep_len or pep_len < min_pep_len or "O" in pep or "U" in pep or re.search(r"([a-z]{2,})", pep):
+                # if len(pep) + 2 > seq_len or "O" in pep or "U" in pep or \
+                # re.search(r"([a-z]{2,})", pep) or not mod_filt(pep, mods, count):
+                if (pep_len >= max_pep_len or pep_len < min_pep_len or "O" in pep or "U" in pep or
+                   re.search(r"([a-z]{2,})", pep)):
+                    
                     pep_len_ign += 1
                     is_title = is_name = is_mw = is_charge = False
                     continue
@@ -217,8 +223,8 @@ def preprocess_mgfs(mgf_dir, out_dir):
                     num_peaks += 1
                     
                     mz_splits = re.split(' |\t', mz_line)
-                    moz = round(float(mz_splits[0]) * 10) # 32 because charge is len 8 and mass is len 24
-                    intensity = math.sqrt(float(mz_splits[1]) + 1.0) # adding 1 to avoid sqrt of zero
+                    moz = round(float(mz_splits[0]) * 10)  # 32 because charge is len 8 and mass is len 24
+                    intensity = math.sqrt(float(mz_splits[1]) + 1.0)  # adding 1 to avoid sqrt of zero
                     if moz > max_moz:
                         max_moz = moz
                     if 0 < moz < spec_size:
@@ -227,7 +233,7 @@ def preprocess_mgfs(mgf_dir, out_dir):
                             spec_val[-1] = max(intensity, spec_val[-1])
                         else:
                             spec_ind.append(moz)
-                            spec_val.append(intensity) # adding one to avoid sqrt of zero
+                            spec_val.append(intensity)  # adding one to avoid sqrt of zero
                 if num_peaks < 15:
                     is_title = is_name = is_mw = is_charge = False
                     continue
@@ -243,9 +249,9 @@ def preprocess_mgfs(mgf_dir, out_dir):
                 ind = list(spec_ind)
                 val = list(spec_val)
 
-                sorts = list(zip(*(sorted(zip(ind, val), key=lambda x: x[1], reverse=True)))) # sort by intensity
-                sorts[0], sorts[1] = sorts[0][:max_spec_len], sorts[1][:max_spec_len] # select top intensity peaks
-                unsorts = list(zip(*(sorted(zip(sorts[0], sorts[1]), key=lambda x: x[0])))) # sorty back using m/z
+                sorts = list(zip(*(sorted(zip(ind, val), key=lambda x: x[1], reverse=True))))  # sort by intensity
+                sorts[0], sorts[1] = sorts[0][:max_spec_len], sorts[1][:max_spec_len]  # select top intensity peaks
+                unsorts = list(zip(*(sorted(zip(sorts[0], sorts[1]), key=lambda x: x[0]))))  # sorty back using m/z
                 ind = unsorts[0]
                 val = unsorts[1]
                     
@@ -263,20 +269,22 @@ def preprocess_mgfs(mgf_dir, out_dir):
                 spec = []
                 new = int((i / len(lines)) * 100)
                 if new >= prev + 10:
-                    #clear_output(wait=True)
+                    # clear_output(wait=True)
                     print('count: ' + str(lcount))
                     print(str(new) + '%')
                     prev = new
 
-        #print('max peaks: ' + str(max_peaks))
+        # print('max peaks: ' + str(max_peaks))
         print('In current file, read {} out of {}'.format(lcount, count))
         print("Ignored: large mass: {}, pep len: {}, dup: {}".format(mass_ign, pep_len_ign, dup_ign))
         print('overall running count: ' + str(tot_count))
         print('max moz: ' + str(max_moz))
     
 
-    train_val_spec_out, test_spec_out, train_val_len_out, test_len_out = train_test_split(spec_out, len_out, test_size=0.1, stratify=len_out, random_state=37, shuffle=True)
-    train_spec_out, val_spec_out, train_len_out, val_len_out = train_test_split(train_val_spec_out, train_val_len_out, test_size=0.2, stratify=train_val_len_out, random_state=79, shuffle=True)
+    train_val_spec_out, test_spec_out, train_val_len_out, test_len_out = train_test_split(
+        spec_out, len_out, test_size=0.1, stratify=len_out, random_state=37, shuffle=True)
+    train_spec_out, val_spec_out, train_len_out, val_len_out = train_test_split(
+        train_val_spec_out, train_val_len_out, test_size=0.2, stratify=train_val_len_out, random_state=79, shuffle=True)
     with open(join(out_dir, 'train_specs.pkl'), 'wb') as f:
         pickle.dump(train_spec_out, f)
     with open(join(out_dir, 'val_specs.pkl'), 'wb') as f:
@@ -383,7 +391,7 @@ def preprocess_mgfs_unlabelled(mgf_dir, out_dir):
             if is_title and is_mw and line.startswith('CHARGE'):
                 l_charge = int(re.findall(r"CHARGE=([-+]?[0-9]*\.?[0-9]*)", line)[0])
                 mass = (mass - config.PROTON) * l_charge
-                if l_charge > charge or round(mass*10) > spec_size:
+                if l_charge > charge or round(mass * 10) > spec_size:
                     is_title = is_name = is_mw = is_charge = False
                     continue
 
@@ -402,8 +410,8 @@ def preprocess_mgfs_unlabelled(mgf_dir, out_dir):
                     num_peaks += 1
                     
                     mz_splits = re.split(' |\t', mz_line)
-                    moz = round(float(mz_splits[0]) * 10) # 32 because charge is len 8 and mass is len 24
-                    intensity = math.sqrt(float(mz_splits[1]) + 1.0) # adding 1 to avoid sqrt of zero
+                    moz = round(float(mz_splits[0]) * 10)  # 32 because charge is len 8 and mass is len 24
+                    intensity = math.sqrt(float(mz_splits[1]) + 1.0)  # adding 1 to avoid sqrt of zero
                     if moz > max_moz:
                         max_moz = moz
                     if 0 < moz < spec_size:
@@ -412,7 +420,7 @@ def preprocess_mgfs_unlabelled(mgf_dir, out_dir):
                             spec_val[-1] = max(intensity, spec_val[-1])
                         else:
                             spec_ind.append(moz)
-                            spec_val.append(intensity) # adding one to avoid sqrt of zero
+                            spec_val.append(intensity)  # adding one to avoid sqrt of zero
                 if num_peaks < 15:
                     is_title = is_name = is_mw = is_charge = False
                     continue
@@ -428,9 +436,9 @@ def preprocess_mgfs_unlabelled(mgf_dir, out_dir):
                 ind = list(spec_ind)
                 val = list(spec_val)
 
-                sorts = list(zip(*(sorted(zip(ind, val), key=lambda x: x[1], reverse=True)))) # sort by intensity
-                sorts[0], sorts[1] = sorts[0][:max_spec_len], sorts[1][:max_spec_len] # select top intensity peaks
-                unsorts = list(zip(*(sorted(zip(sorts[0], sorts[1]), key=lambda x: x[0])))) # sorty back using m/z
+                sorts = list(zip(*(sorted(zip(ind, val), key=lambda x: x[1], reverse=True))))  # sort by intensity
+                sorts[0], sorts[1] = sorts[0][:max_spec_len], sorts[1][:max_spec_len]  # select top intensity peaks
+                unsorts = list(zip(*(sorted(zip(sorts[0], sorts[1]), key=lambda x: x[0]))))  # sorty back using m/z
                 ind = unsorts[0]
                 val = unsorts[1]
                     
@@ -447,12 +455,12 @@ def preprocess_mgfs_unlabelled(mgf_dir, out_dir):
                 spec = []
                 new = int((i / len(lines)) * 100)
                 if new >= prev + 10:
-                    #clear_output(wait=True)
+                    # clear_output(wait=True)
                     print('count: ' + str(lcount))
                     print(str(new) + '%')
                     prev = new
 
-        #print('max peaks: ' + str(max_peaks))
+        # print('max peaks: ' + str(max_peaks))
         print('In current file, read {} out of {}'.format(lcount, count))
         print("Ignored: large mass: {}, pep len: {}, dup: {}".format(mass_ign, pep_len_ign, dup_ign))
         print('overall running count: ' + str(tot_count))
@@ -483,10 +491,10 @@ def preprocess_mgfs_unlabelled(mgf_dir, out_dir):
 
 
 if __name__ == '__main__':
-    # mgf_dir = config.get_config(section='input', key='mgf_dir')
-    # prep_dir = config.get_config(section='input', key='prep_dir')
-    # preprocess_mgfs(mgf_dir, prep_dir)
+    mgf_dir = config.get_config(section='input', key='mgf_dir')
+    prep_dir = config.get_config(section='input', key='prep_dir')
+    preprocess_mgfs(mgf_dir, prep_dir)
 
-    mgf_dir = config.get_config(section='search', key='mgf_dir')
-    prep_dir = config.get_config(section='search', key='prep_path')
-    preprocess_mgfs_unlabelled(mgf_dir, prep_dir)
+    # mgf_dir = config.get_config(section='search', key='mgf_dir')
+    # prep_dir = config.get_config(section='search', key='prep_path')
+    # preprocess_mgfs_unlabelled(mgf_dir, prep_dir)

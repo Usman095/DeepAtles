@@ -1,51 +1,53 @@
 import argparse
 import os
-import timeit
-import shutil
-from os.path import join
-import re
 import pickle
 import random as rand
-import numpy as np
+import re
+import shutil
+import timeit
+from os.path import join
 
+import apex
+import numpy as np
 import torch
-from torch._C import dtype
 import torch.distributed as dist
 import torch.multiprocessing as mp
 import torch.nn as nn
-from torch.nn.functional import dropout
 import torch.optim as optim
-from torch.utils.data import BatchSampler
 from sklearn.model_selection import train_test_split
-import apex
+from torch._C import dtype
+from torch.nn.functional import dropout
+from torch.utils.data import BatchSampler
 from torch.utils.data.sampler import WeightedRandomSampler
 import wandb
-torch.manual_seed(1)
 
 from src.atlesconfig import config, wandbsetup
-from src.atlestrain import dataset, model, trainmodel, sampler
+from src.atlestrain import dataset, model, sampler, trainmodel
 from src.atlesutils import simulatespectra as sim
 
+torch.manual_seed(1)
+
 # with redirect_output("deepSNAP_redirect.txtS"):
-train_loss     = []
-test_loss      = []
+train_loss = []
+test_loss = []
 train_accuracy = []
-test_accuracy  = []
+test_accuracy = []
+
 
 def run_par(rank, world_size):
-    model_name = "pt-mass-ch" #first k is spec size second is batch size
+    model_name = "pt-mass-ch"  # first k is spec size second is batch size
     print("Training {}.".format(model_name))
     wandb.init(project="deepatles", entity="pcds")
     wandb.run.name = "{}-{}-{}".format(model_name, os.environ['SLURM_JOB_ID'], wandb.run.id)
     wandbsetup.set_wandb_config(wandb)
-    
+
     setup(rank, world_size)
 
-    batch_size  = config.get_config(section="ml", key="batch_size")
+    batch_size = config.get_config(section="ml", key="batch_size")
     prep_dir = config.get_config(section='input', key='prep_dir')
 
     train_dataset = dataset.SpectraDataset(join(prep_dir, 'train_specs.pkl'))
-    val_dataset   = dataset.SpectraDataset(join(prep_dir, 'val_specs.pkl'))
+    val_dataset = dataset.SpectraDataset(join(prep_dir, 'val_specs.pkl'))
 
     weights_all = train_dataset.class_weights_all
     weighted_sampler = WeightedRandomSampler(weights=weights_all, num_samples=len(weights_all), replacement=True)
@@ -107,20 +109,23 @@ def run_par(rank, world_size):
 
         if l_epoch % 1 == 0 and rank == 0:
             torch.save({
-            'epoch': l_epoch,
-            'model_state_dict': model_.state_dict(),
-            'optimizer_state_dict': optimizer.state_dict(),
-            'loss': loss,
+                'epoch': l_epoch,
+                'model_state_dict': model_.state_dict(),
+                'optimizer_state_dict': optimizer.state_dict(),
+                'loss': loss,
             }, "atles-out/" + os.environ['SLURM_JOB_ID'] + "/models/{}-{}.pt".format(wandb.run.name, l_epoch))
             # remove the model two steps before.
-            if os.path.exists("atles-out/" + os.environ['SLURM_JOB_ID'] + "/models/{}-{}.pt".format(wandb.run.name, l_epoch-2)):
-                os.remove("atles-out/" + os.environ['SLURM_JOB_ID'] + "/models/{}-{}.pt".format(wandb.run.name, l_epoch-2))
+            if os.path.exists(
+                    "atles-out/" + os.environ['SLURM_JOB_ID'] + "/models/{}-{}.pt".format(wandb.run.name, l_epoch - 2)):
+                os.remove(
+                    "atles-out/" + os.environ['SLURM_JOB_ID'] + "/models/{}-{}.pt".format(wandb.run.name, l_epoch - 2))
             # model_name = "single_mod-{}-{}.pt".format(epoch, lr)
             # print(wandb.run.dir)
             # torch.save(model_.state_dict(), join("./models/hcd/", model_name))
             wandb.save("{}-{}.pt".format(wandb.run.name, l_epoch))
-    
+
     cleanup()
+
 
 def setup(rank, world_size):
     os.environ['MASTER_ADDR'] = 'localhost'
@@ -128,6 +133,7 @@ def setup(rank, world_size):
     torch.cuda.set_device(rank)
     dist.init_process_group(backend='nccl', world_size=world_size, rank=rank)
     # dist.init_process_group(backend='nccl', world_size=world_size, rank=rank)
+
 
 def cleanup():
     dist.destroy_process_group()
@@ -141,14 +147,15 @@ def apply_filter(filt, file_name):
         file_parts = re.search(r"(\d+)-(\d+)-(\d+.\d+)-(\d+)-(\d+).[pt|npy]", file_name)
         charge = int(file_parts[4])
         mods = int(file_parts[5])
-    except:
+    except Exception as e:
+        print("Exception thrown: {}".format(str(e)))
         print(file_name)
         print(file_parts)
-    
-    if ((filt["charge"] == 0 or charge <= filt["charge"]) # change this back to <=
-        and (mods <= filt["mods"])):
+
+    if ((filt["charge"] == 0 or charge <= filt["charge"])  # change this back to <=
+            and (mods <= filt["mods"])):
         return True
-    
+
     return False
 
 
@@ -164,6 +171,7 @@ def psm_collate(batch):
 
 # drop_prob=0.5
 # print(vocab_size)
+
 
 def read_split_listings(l_in_tensor_dir):
     print(l_in_tensor_dir)
@@ -198,7 +206,8 @@ def read_split_listings(l_in_tensor_dir):
             spec_mass = float(re.search(r"(\d+)-(\d+)-(\d+.\d+)-(\d+)-(\d+).[pt|npy]", test_spec)[3])
             out_test_masses.append(spec_mass)
 
-    # train_peps, train_specs, train_masses = zip(*sorted(zip(train_peps, train_specs, train_masses), key=lambda x: x[2]))
+    # train_peps, train_specs, train_masses = zip(*sorted(zip(
+    # train_peps, train_specs, train_masses), key=lambda x: x[2]))
     # train_peps, train_specs, train_masses = list(train_peps), list(train_specs), list(train_masses)
 
     # test_peps, test_specs, test_masses = zip(*sorted(zip(test_peps, test_specs, test_masses), key=lambda x: x[2]))
@@ -209,20 +218,20 @@ def read_split_listings(l_in_tensor_dir):
 
 if __name__ == '__main__':
 
-    # Initialize parser 
+    # Initialize parser
     parser = argparse.ArgumentParser()
-    
-    # Adding optional argument 
+
+    # Adding optional argument
     parser.add_argument("-j", "--job-id", help="No arguments should be passed. \
-        Instead use the shell script provided with the code.") 
+        Instead use the shell script provided with the code.")
     parser.add_argument("-p", "--path", help="Path to the config file.")
     parser.add_argument("-s", "--server-name", help="Which server the code is running on. \
         Options: raptor, comet. Default: comet", default="comet")
-    
-    # Read arguments from command line 
-    args = parser.parse_args() 
-    
-    if args.job_id: 
+
+    # Read arguments from command line
+    args = parser.parse_args()
+
+    if args.job_id:
         print("job_id: %s" % args.job_id)
         job_id = args.job_id
 
@@ -230,14 +239,12 @@ if __name__ == '__main__':
         print("job_id: %s" % args.path)
         scratch = args.path
 
-    
-
     mp.set_start_method('forkserver')
     config.PARAM_PATH = join((os.path.dirname(__file__)), "config.ini")
-    
+
     do_learn = True
     save_frequency = 2
-    
+
     # torch.manual_seed(0)
     # torch.cuda.manual_seed(0)
 

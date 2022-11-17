@@ -24,21 +24,10 @@ class SpectraDataset(data.Dataset):
         
         with open(dir_path, 'rb') as f:
             data = pickle.load(f)
-        random.shuffle(data)
-
-        parent_dir = in_path.parent.absolute()
-        means = np.load(join(parent_dir, "means.npy"))
-        stds = np.load(join(parent_dir, "stds.npy"))
-        self.means = torch.from_numpy(means).float()
-        self.stds = torch.from_numpy(stds).float()
-
-        self.charge = config.get_config(section='input', key='charge')
-        self.max_pep_len = config.get_config(section='ml', key='max_pep_len')
-        self.min_pep_len = config.get_config(section='ml', key='min_pep_len')
-        self.spec_size = config.get_config(section='input', key='spec_size')
+        # random.shuffle(data)
 
         data = sorted(data, key=lambda x: x[3])
-        
+
         self.scan_ids = []
         self.mzs = []
         self.ints = []
@@ -51,6 +40,17 @@ class SpectraDataset(data.Dataset):
             self.ints.append(spec_data[2])
             self.masses.append(spec_data[3])
             self.charges.append(spec_data[4])
+
+        parent_dir = in_path.parent.absolute()
+        means = np.load(join(parent_dir, "means.npy"))
+        stds = np.load(join(parent_dir, "stds.npy"))
+        self.means = torch.from_numpy(means).float()
+        self.stds = torch.from_numpy(stds).float()
+
+        self.charge = config.get_config(section='input', key='charge')
+        self.max_pep_len = config.get_config(section='ml', key='max_pep_len')
+        self.min_pep_len = config.get_config(section='ml', key='min_pep_len')
+        self.spec_size = config.get_config(section='input', key='spec_size')
         
         print('dataset size: {}'.format(len(data)))
 

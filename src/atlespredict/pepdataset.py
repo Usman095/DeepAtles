@@ -15,25 +15,26 @@ from src.atlesutils import simulatespectra as sim
 
 class PeptideDataset(data.Dataset):
     'Characterizes a dataset for PyTorch'
+
     def __init__(self, dir_path, decoy=False):
         'Initialization'
-        
+
         in_path = Path(dir_path)
         assert in_path.exists()
         assert in_path.is_dir()
 
-        self.aas            = ['_PAD'] + list(config.AAMass.keys())# + list(config.ModCHAR.values())
-        self.aa2idx         = {a:i for i, a in enumerate(self.aas)}
-        self.idx2aa         = {i:a for i, a in enumerate(self.aas)}
-        
-        self.pep_path       = dir_path
-        self.vocab_size     = len(self.aa2idx) # + self.charge + self.num_species + 1
+        self.aas = ['_PAD'] + list(config.AAMass.keys())  # + list(config.ModCHAR.values())
+        self.aa2idx = {a: i for i, a in enumerate(self.aas)}
+        self.idx2aa = {i: a for i, a in enumerate(self.aas)}
+
+        self.pep_path = dir_path
+        self.vocab_size = len(self.aa2idx)  # + self.charge + self.num_species + 1
         print("Vocabulary size: {}".format(self.vocab_size))
-        self.seq_len        = config.get_config(section='ml', key='pep_seq_len')
-        
+        self.seq_len = config.get_config(section='ml', key='pep_seq_len')
+
         print("Loading peptides...")
         pep_lst, prot_list, pep_mass_lst, pep_modified_lst = load_peps(self.pep_path)
-        
+
         self.pep_lst_set = set(pep_lst)
 
         print("peptide list len: {}".format(len(pep_lst)))
@@ -51,29 +52,27 @@ class PeptideDataset(data.Dataset):
 #                 pep_mass_lst.append(sim.get_pep_mass(s_pep))
 #                 pep_modified_lst.append(any(aa.islower() for aa in s_pep))
 #         print("New peptides added: {}".format(added_counter))
-            
-            
+
         all_sorts = list(zip(*sorted(zip(pep_lst, prot_list, pep_mass_lst, pep_modified_lst), key=lambda x: x[2])))
-        self.pep_list          = all_sorts[0]
-        self.prot_list         = all_sorts[1]
-        self.pep_mass_list     = all_sorts[2]
+        self.pep_list = all_sorts[0]
+        self.prot_list = all_sorts[1]
+        self.pep_mass_list = all_sorts[2]
         self.pep_modified_list = all_sorts[3]
-        self.missed_cleavs     = []
+        self.missed_cleavs = []
         for pep in self.pep_list:
             miss_clvs = (pep.count("K") + pep.count("R")) - (pep.count("KP") + pep.count("RP"))
             if pep[-1] == 'K' or pep[-1] == 'R':
                 miss_clvs -= 1
             self.missed_cleavs.append(miss_clvs)
         if decoy:
-            self.pep_list, self.prot_list, self.pep_mass_list, self.pep_modified_list, self.missed_cleavs = self.get_docoys()
-            
-        print('Peptide Dataset Size: {}'.format(len(self.pep_list)))
-        
+            self.pep_list, self.prot_list, self.pep_mass_list, self.pep_modified_list, self.missed_cleavs = \
+                self.get_docoys()
+
+        print('{} Peptide Dataset Size: {}'.format(len(self.pep_list), "Decoy" if decoy else "Target"))
 
     def __len__(self):
         'Denotes the total number of samples'
         return len(self.pep_list)
-
 
     def __getitem__(self, index):
         'Generates one sample of data'
@@ -85,25 +84,24 @@ class PeptideDataset(data.Dataset):
         # gray_mass = sim.gray_code(round(pep_mass * 100))
         # mass_arr = sim.decimal_to_binary_array(gray_mass, 24)
         # pepl = np.concatenate((mass_arr, pepl))
-        
+
         torch_pep = torch.tensor(pepl, dtype=torch.long)
         return torch_pep
-        
 
     def pad_left(self, arr):
         out = np.zeros(self.seq_len)
         out[-len(arr):] = arr
         return out
-    
+
     def get_docoys(self):
-        decoy_list          = []
-        decoy_prot_list     = []
-        decoy_mass_list     = []
+        decoy_list = []
+        decoy_prot_list = []
+        decoy_mass_list = []
         decoy_modified_list = []
-        decoy_miss_clvs     = []
+        decoy_miss_clvs = []
         for pep, prot, mass, modified, miss_clv in zip(
-            self.pep_list, self.prot_list, self.pep_mass_list, self.pep_modified_list, self.missed_cleavs):
-            
+                self.pep_list, self.prot_list, self.pep_mass_list, self.pep_modified_list, self.missed_cleavs):
+
             pep_parts = re.findall(r"([A-Z][a-z]?)", pep)
             decoy_pep = pep_parts[0] + "".join(pep_parts[-2:0:-1]) + pep_parts[-1]
             if decoy_pep not in self.pep_lst_set:
@@ -135,9 +133,10 @@ def apply_mod(peps, mod):
             else:
                 aa_indices = find_occurrences(pep, mod_aa)
                 for index in aa_indices:
-                    if index == len(pep) - 1 or not pep[index+1].islower():
-                        result_peps.update([pep[:index+1] + mod["mod_char"] + (pep[index+1:] if index < len(pep) else "")])
-        
+                    if index == len(pep) - 1 or not pep[index + 1].islower():
+                        result_peps.update([pep[: index + 1] + mod["mod_char"] +
+                                            (pep[index + 1:] if index < len(pep) else "")])
+
     return result_peps
 
 
@@ -150,31 +149,32 @@ def add_mods(pep, mods, num_mods):
             temp_mod_peps.update(apply_mod(mod_peps, mod))
         mod_peps.update(set(temp_mod_peps))
         result_peps.update(mod_peps)
-    
+
     return result_peps
+
 
 def load_peps(pep_dir):
     fasta_files = preprocess.verify_in_dir(pep_dir, "fasta")
-    
+
     use_mods = config.get_config(key="use_mods", section="input")
     mods_list = config.Mods
     num_mods = config.get_config(key="num_mods", section="search")
     pep_seq_len = config.get_config(key="pep_seq_len", section="ml")
-    
+
     pep_set = set()
     pep_list = []
     masses = []
     modifieds = []
     prot_list = []
-    
+
     tot_pep_count = 0
     for fasta_file in fasta_files:
         tqdm.write('Reading: {}'.format(fasta_file))
-        
+
         f = open(fasta_file, "r")
         lines = f.readlines()
         f.close()
-        
+
         # print("File length: {}".format(len(lines)))
         peps = []
         temp_prot = ""
@@ -202,5 +202,5 @@ def load_peps(pep_dir):
                     tot_pep_count += 1
             # bar.update(i)
         tqdm.write("Peptides written: {}".format(tot_pep_count))
-        
+
         return pep_list, prot_list, masses, modifieds

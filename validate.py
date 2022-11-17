@@ -1,31 +1,32 @@
 import argparse
 import os
-import timeit
-import shutil
-from os.path import join
-import re
 import pickle
 import random as rand
-import numpy as np
+import re
+import shutil
+import timeit
+from os.path import join
 
+import apex
+import numpy as np
 import torch
-from torch._C import dtype
 import torch.distributed as dist
 import torch.multiprocessing as mp
 import torch.nn as nn
-from torch.nn.functional import dropout
 import torch.optim as optim
-from torch.utils.data import BatchSampler
 from sklearn.model_selection import train_test_split
-import apex
+from torch._C import dtype
+from torch.nn.functional import dropout
+from torch.utils.data import BatchSampler
 from torch.utils.data.sampler import WeightedRandomSampler
-import wandb
-torch.manual_seed(1)
 
-from src.atlesconfig import config, wandbsetup
-from src.atlestrain import dataset, model, trainmodel, sampler
-from src.atlesutils import simulatespectra as sim
 import run_train as main
+import wandb
+from src.atlesconfig import config, wandbsetup
+from src.atlestrain import dataset, model, sampler, trainmodel
+from src.atlesutils import simulatespectra as sim
+
+torch.manual_seed(1)
 
 # with redirect_output("deepSNAP_redirect.txtS"):
 train_loss     = []
@@ -33,18 +34,20 @@ test_loss      = []
 train_accuracy = []
 test_accuracy  = []
 
+
 def run_par(rank, world_size):
-    model_name = "deepatles" #first k is spec size second is batch size
+    model_name = "deepatles"  # first k is spec size second is batch size
     print("Validating {}.".format(model_name))
     
     wandb.init(mode="disabled")
-    wandb.run.name = "{}-{}-{}".format(model_name, os.environ['SLURM_JOB_ID'], wandb.run.id)
+    # wandb.run.name = "{}-{}-{}".format(model_name, os.environ['SLURM_JOB_ID'], wandb.run.id)
+    wandb.run.name = "{}-{}-{}".format(model_name, '1234', wandb.run.id)
     wandbsetup.set_wandb_config(wandb)
 
     main.setup(rank, world_size)
 
     batch_size  = config.get_config(section="ml", key="batch_size")
-    val_dir = config.get_config(section='input', key='val_dir')
+    val_dir = config.get_config(section='input', key='prep_dir')
 
     val_dataset = dataset.SpectraDataset(join(val_dir, 'val_specs.pkl'))
 
@@ -82,23 +85,24 @@ def run_par(rank, world_size):
     model_ = model.Net().to(rank)
     model_ = apex.parallel.DistributedDataParallel(model_)
     # model_.load_state_dict(torch.load("atles-out/15193090/models/deepatles-15193090-1nq92avm-447.pt")["model_state_dict"])
-    model_.load_state_dict(torch.load("atles-out/16403437/models/pt-mass-ch-16403437-1toz70vi-472.pt")["model_state_dict"])
+    model_path = "/lclhome/mtari008/DeepAtles/atles-out/123/models/pt-mass-ch-123-2zgb2ei9-385.pt"
+    model_.load_state_dict(torch.load(model_path)["model_state_dict"])
 
     start_time = timeit.default_timer()
     
-    _, pred_lens, labl_lens, pred_cleavs, labl_cleavs, pred_mods, labl_mods =\
-         trainmodel.test(model_, rank, val_loader, mse_loss, ce_loss, 0)
+    _, pred_lens, labl_lens, pred_cleavs, labl_cleavs, pred_mods, labl_mods = \
+        trainmodel.test(model_, rank, val_loader, mse_loss, ce_loss, 0)
     
     pred_lens, labl_lens = torch.round(pred_lens), torch.round(labl_lens)
     pred_cleavs, labl_cleavs = multi_class(pred_cleavs, labl_cleavs)
     pred_mods, labl_mods = multi_class(pred_mods, labl_mods)
 
-    torch.save(pred_lens, "pred_lens.pt")
-    torch.save(labl_lens, "labl_lens.pt")
-    torch.save(pred_cleavs, "pred_cleavs.pt")
-    torch.save(labl_cleavs, "labl_cleavs.pt")
-    torch.save(pred_mods, "pred_mods.pt")
-    torch.save(labl_mods, "labl_mods.pt")
+    np.save("notebooks/pred_lens.npy", pred_lens.cpu().detach().numpy())
+    np.save("notebooks/labl_lens.npy", labl_lens.cpu().detach().numpy())
+    np.save("notebooks/pred_cleavs.npy", pred_cleavs.cpu().detach().numpy())
+    np.save("notebooks/labl_cleavs.npy", labl_cleavs.cpu().detach().numpy())
+    np.save("notebooks/pred_mods.npy", pred_mods.cpu().detach().numpy())
+    np.save("notebooks/labl_mods.npy", labl_mods.cpu().detach().numpy())
     print(pred_lens.size())
     print(labl_lens.size())
     print(pred_cleavs.size())
@@ -114,8 +118,8 @@ def run_par(rank, world_size):
 
 
 def multi_class(y_pred, y_test):
-    y_pred_softmax = torch.log_softmax(y_pred, dim = 1)
-    _, y_pred_tags = torch.max(y_pred_softmax, dim = 1)    
+    y_pred_softmax = torch.log_softmax(y_pred, dim=1)
+    _, y_pred_tags = torch.max(y_pred_softmax, dim=1)
     return y_pred_tags, y_test
 
 
@@ -125,10 +129,10 @@ def round_lens(y_pred, y_test, err=0):
 
 if __name__ == '__main__':
 
-    # Initialize parser 
+    # Initialize parser
     parser = argparse.ArgumentParser()
     
-    # Adding optional argument 
+    # Adding optional argument
     parser.add_argument("-j", "--job-id", help="No arguments should be passed. \
         Instead use the shell script provided with the code.") 
     parser.add_argument("-p", "--path", help="Path to the config file.")

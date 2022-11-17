@@ -52,7 +52,7 @@ class SpectraDataset(data.Dataset):
             self.is_mods.append(spec_data[5])
             self.miss_cleavs.append(spec_data[6])
 
-        num_classes = self.max_pep_len - self.min_pep_len
+        num_classes = self.max_pep_len - self.min_pep_len + 1
         class_counts = [0] * num_classes
         for cla in self.lens:
             class_counts[cla] += 1
