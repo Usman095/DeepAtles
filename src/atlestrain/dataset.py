@@ -56,7 +56,7 @@ class SpectraDataset(data.Dataset):
         class_counts = [0] * num_classes
         for cla in self.lens:
             class_counts[cla] += 1
-        class_weights = 1./torch.FloatTensor(class_counts)
+        class_weights = 1. / torch.FloatTensor(class_counts)
         self.class_weights_all = class_weights[self.lens]
         
         print('dataset size: {}'.format(len(data)))
@@ -74,7 +74,7 @@ class SpectraDataset(data.Dataset):
         spec_mz = sim.pad_right(self.mzs[index], max_spec_len)
         spec_intensity = sim.pad_right(self.ints[index], max_spec_len)
 
-        ind = torch.LongTensor([[0]*len(spec_mz), spec_mz])
+        ind = torch.LongTensor([[0] * len(spec_mz), spec_mz])
         val = torch.FloatTensor(spec_intensity)
         
         torch_spec = torch.sparse_coo_tensor(

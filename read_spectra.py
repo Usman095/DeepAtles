@@ -145,7 +145,7 @@ def preprocess_mgfs(mgf_dir, out_dir):
 
             if line.startswith('TITLE'):
                 split_len = len(line.split('.'))
-                scan_id = int(line.split('.')[-3]) if split_len >= 3 else int(line.split('=')[-1])
+                # scan_id = int(line.split('.')[-3]) if split_len >= 3 else int(line.split('=')[-1])
                 is_title = True
 
             if is_title and line.startswith('PEPMASS'):
@@ -189,7 +189,7 @@ def preprocess_mgfs(mgf_dir, out_dir):
                 count = 3
                 # if len(pep) + 2 > seq_len or "O" in pep or "U" in pep or \
                 # re.search(r"([a-z]{2,})", pep) or not mod_filt(pep, mods, count):
-                if (pep_len >= max_pep_len or pep_len < min_pep_len or "O" in pep or "U" in pep or
+                if (pep_len > max_pep_len or pep_len < min_pep_len or "O" in pep or "U" in pep or
                    re.search(r"([a-z]{2,})", pep)):
                     
                     pep_len_ign += 1
@@ -285,6 +285,7 @@ def preprocess_mgfs(mgf_dir, out_dir):
         spec_out, len_out, test_size=0.1, stratify=len_out, random_state=37, shuffle=True)
     train_spec_out, val_spec_out, train_len_out, val_len_out = train_test_split(
         train_val_spec_out, train_val_len_out, test_size=0.2, stratify=train_val_len_out, random_state=79, shuffle=True)
+    print('writing to dir... {}'.format(out_dir))
     with open(join(out_dir, 'train_specs.pkl'), 'wb') as f:
         pickle.dump(train_spec_out, f)
     with open(join(out_dir, 'val_specs.pkl'), 'wb') as f:
