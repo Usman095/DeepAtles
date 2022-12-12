@@ -391,7 +391,7 @@ def preprocess_mgfs_unlabelled(mgf_dir, out_dir):
             
             if is_title and is_mw and line.startswith('CHARGE'):
                 l_charge = int(re.findall(r"CHARGE=([-+]?[0-9]*\.?[0-9]*)", line)[0])
-                mass = (mass - config.PROTON) * l_charge
+                # mass = (mass - config.PROTON) * l_charge
                 if l_charge > charge or round(mass * 10) > spec_size:
                     is_title = is_name = is_mw = is_charge = False
                     continue
@@ -492,10 +492,10 @@ def preprocess_mgfs_unlabelled(mgf_dir, out_dir):
 
 
 if __name__ == '__main__':
-    mgf_dir = config.get_config(section='input', key='mgf_dir')
-    prep_dir = config.get_config(section='input', key='prep_dir')
-    preprocess_mgfs(mgf_dir, prep_dir)
+    # mgf_dir = config.get_config(section='input', key='mgf_dir')
+    # prep_dir = config.get_config(section='input', key='prep_dir')
+    # preprocess_mgfs(mgf_dir, prep_dir)
 
-    # mgf_dir = config.get_config(section='search', key='mgf_dir')
-    # prep_dir = config.get_config(section='search', key='prep_path')
-    # preprocess_mgfs_unlabelled(mgf_dir, prep_dir)
+    mgf_dir = config.get_config(section='search', key='mgf_dir')
+    prep_dir = config.get_config(section='search', key='prep_path')
+    preprocess_mgfs_unlabelled(mgf_dir, prep_dir)

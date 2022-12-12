@@ -7,7 +7,6 @@ import shutil
 import timeit
 from os.path import join
 
-import apex
 import numpy as np
 import torch
 import torch.distributed as dist
@@ -29,10 +28,10 @@ from src.atlesutils import simulatespectra as sim
 torch.manual_seed(1)
 
 # with redirect_output("deepSNAP_redirect.txtS"):
-train_loss     = []
-test_loss      = []
+train_loss = []
+test_loss = []
 train_accuracy = []
-test_accuracy  = []
+test_accuracy = []
 
 
 def run_par(rank, world_size):
@@ -46,10 +45,10 @@ def run_par(rank, world_size):
 
     main.setup(rank, world_size)
 
-    batch_size  = config.get_config(section="ml", key="batch_size")
-    val_dir = config.get_config(section='input', key='prep_dir')
+    batch_size = config.get_config(section="ml", key="batch_size")
+    test_dir = config.get_config(section='input', key='prep_dir')
 
-    val_dataset = dataset.SpectraDataset(join(val_dir, 'val_specs.pkl'))
+    val_dataset = dataset.SpectraDataset(join(test_dir, 'test_specs.pkl'))
 
     weights_all = val_dataset.class_weights_all
     weighted_sampler = WeightedRandomSampler(weights=weights_all, num_samples=len(weights_all), replacement=True)
@@ -83,9 +82,10 @@ def run_par(rank, world_size):
         torch.cuda.set_device(rank)
 
     model_ = model.Net().to(rank)
-    model_ = apex.parallel.DistributedDataParallel(model_)
+    model_ = nn.parallel.DistributedDataParallel(model_)
     # model_.load_state_dict(torch.load("atles-out/15193090/models/deepatles-15193090-1nq92avm-447.pt")["model_state_dict"])
-    model_path = "/lclhome/mtari008/DeepAtles/atles-out/123/models/pt-mass-ch-123-2zgb2ei9-385.pt"
+    # model_path = "/lclhome/mtari008/DeepAtles/atles-out/123/models/pt-mass-ch-123-2zgb2ei9-385.pt"
+    model_path = "/lclhome/mtari008/DeepAtles/atles-out/1382/models/nist-massive-deepnovo-mass-ch-1382-c8mlqbq7-157.pt"
     model_.load_state_dict(torch.load(model_path)["model_state_dict"])
 
     start_time = timeit.default_timer()
@@ -97,12 +97,12 @@ def run_par(rank, world_size):
     pred_cleavs, labl_cleavs = multi_class(pred_cleavs, labl_cleavs)
     pred_mods, labl_mods = multi_class(pred_mods, labl_mods)
 
-    np.save("notebooks/pred_lens.npy", pred_lens.cpu().detach().numpy())
-    np.save("notebooks/labl_lens.npy", labl_lens.cpu().detach().numpy())
-    np.save("notebooks/pred_cleavs.npy", pred_cleavs.cpu().detach().numpy())
-    np.save("notebooks/labl_cleavs.npy", labl_cleavs.cpu().detach().numpy())
-    np.save("notebooks/pred_mods.npy", pred_mods.cpu().detach().numpy())
-    np.save("notebooks/labl_mods.npy", labl_mods.cpu().detach().numpy())
+    np.save("notebooks/data/pred_lens1.npy", pred_lens.cpu().detach().numpy())
+    np.save("notebooks/data/labl_lens1.npy", labl_lens.cpu().detach().numpy())
+    np.save("notebooks/data/pred_cleavs1.npy", pred_cleavs.cpu().detach().numpy())
+    np.save("notebooks/data/labl_cleavs1.npy", labl_cleavs.cpu().detach().numpy())
+    np.save("notebooks/data/pred_mods1.npy", pred_mods.cpu().detach().numpy())
+    np.save("notebooks/data/labl_mods1.npy", labl_mods.cpu().detach().numpy())
     print(pred_lens.size())
     print(labl_lens.size())
     print(pred_cleavs.size())
@@ -134,15 +134,15 @@ if __name__ == '__main__':
     
     # Adding optional argument
     parser.add_argument("-j", "--job-id", help="No arguments should be passed. \
-        Instead use the shell script provided with the code.") 
+        Instead use the shell script provided with the code.")
     parser.add_argument("-p", "--path", help="Path to the config file.")
     parser.add_argument("-s", "--server-name", help="Which server the code is running on. \
         Options: raptor, comet. Default: comet", default="comet")
     
-    # Read arguments from command line 
-    args = parser.parse_args() 
+    # Read arguments from command line
+    args = parser.parse_args()
     
-    if args.job_id: 
+    if args.job_id:
         print("job_id: %s" % args.job_id)
         job_id = args.job_id
 

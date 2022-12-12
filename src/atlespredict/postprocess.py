@@ -18,7 +18,7 @@ def generate_percolator_input(l_pep_inds, l_pep_vals, l_spec_inds, pd_dataset, s
             pep_val = pep_vals_row[iidx]
             if pep_val.item() > 0:
                 charge = [0] * pin_charge
-                ch_idx = min(spec_dataset.charges[l_spec_idx], 5)
+                ch_idx = min(spec_dataset.charges[l_spec_idx], pin_charge)
                 charge[ch_idx - 1] = 1
                 label = 1 if res_type == "target" else -1
                 out_row = [f"{res_type}-{tot_count}", label, l_spec_idx, pep_val.item()]

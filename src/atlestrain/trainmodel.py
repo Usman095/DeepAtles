@@ -7,7 +7,6 @@ import numpy as np
 import torch
 import torch.nn as nn
 import progressbar
-from apex import amp
 import wandb
 # from tqdm import tqdm
 
@@ -25,7 +24,7 @@ ce_weight_mod = config.get_config(section="ml", key="ce_weight_mod")
 divider = ce_weight_clv + mse_weight
 
 
-def train(model, device, train_loader, mse_loss, ce_loss, optimizer, epoch):
+def train(model, device, train_loader, mse_loss, ce_loss, optimizer, scaler, epoch):
     model.train()
 
     accurate_cleavs = accurate_mods = 0
@@ -45,31 +44,31 @@ def train(model, device, train_loader, mse_loss, ce_loss, optimizer, epoch):
 
         optimizer.zero_grad()
 
-        input_mask = data[0] == 0
-        # input_mask = 0
-        lens, cleavs, mods = model(data[0], data[1], input_mask)
-        lens = lens.squeeze()
-        # cleavs = cleavs.squeeze()
-        # print(len(cleavs))
-        # print(torch.min(data[5]), torch.max(data[5]))
-        mse_loss_val = mse_loss(lens, data[2])
-        ce_clv_loss_val = ce_loss(cleavs, data[4])
-        ce_mod_loss_val = ce_loss(mods, data[3])
-        loss = (mse_weight * mse_loss_val + ce_weight_clv * ce_clv_loss_val +
-                ce_weight_mod * ce_mod_loss_val)  # / divider
-        # loss = sum(loss_lst) / len(loss_lst)
-        # loss = mse_loss_val
-        tot_mse_loss += float(mse_loss_val)
-        tot_ce_clv_loss += float(ce_clv_loss_val)
-        tot_ce_mod_loss += float(ce_mod_loss_val)
-        tot_loss += float(loss)
+        with torch.autocast(device_type='cuda', dtype=torch.float16):
+            input_mask = data[0] == 0
+            # input_mask = 0
+            lens, cleavs, mods = model(data[0], data[1], input_mask)
+            lens = lens.squeeze()
+            # cleavs = cleavs.squeeze()
+            # print(len(cleavs))
+            # print(torch.min(data[5]), torch.max(data[5]))
+            mse_loss_val = mse_loss(lens, data[2])
+            ce_clv_loss_val = ce_loss(cleavs, data[4])
+            ce_mod_loss_val = ce_loss(mods, data[3])
+            loss = (mse_weight * mse_loss_val + ce_weight_clv * ce_clv_loss_val +
+                    ce_weight_mod * ce_mod_loss_val)  # / divider
+            # loss = sum(loss_lst) / len(loss_lst)
+            # loss = mse_loss_val
+            tot_mse_loss += float(mse_loss_val)
+            tot_ce_clv_loss += float(ce_clv_loss_val)
+            tot_ce_mod_loss += float(ce_mod_loss_val)
+            tot_loss += float(loss)
 
-        with amp.scale_loss(loss, optimizer) as scaled_loss:
-            scaled_loss.backward()
+        scaler.scale(loss).backward()
 
-        nn.utils.clip_grad_norm_(model.parameters(), 5)
+        scaler.step(optimizer)
 
-        optimizer.step()
+        scaler.update()
 
         # accurate_labels += multi_acc(lens, data[2])
         accurate_labels_0 += mse_acc(lens, data[2], err=0)
@@ -120,31 +119,38 @@ def test(model, device, test_loader, mse_loss, ce_loss, epoch):
         labl_lens, labl_cleavs, labl_mods = [], [], []
         # with progressbar.ProgressBar(max_value=len(train_loader)) as p_bar:
         for data in test_loader:
-            data[0] = data[0].to(device)  # spec
-            # data[1] = data[1].to(device) # intensities
-            data[1] = data[1].to(device)  # charge gray-mass
-            data[2] = data[2].to(device)  # pep lens
-            data[3] = data[3].to(device)  # modifications
-            data[4] = data[4].to(device)  # missed cleavages
+            with torch.autocast(device_type='cuda', dtype=torch.float16):
+                data[0] = data[0].to(device)  # spec
+                # data[1] = data[1].to(device) # intensities
+                data[1] = data[1].to(device)  # charge gray-mass
+                data[2] = data[2].to(device)  # pep lens
+                data[3] = data[3].to(device)  # modifications
+                data[4] = data[4].to(device)  # missed cleavages
 
-            input_mask = data[0] == 0
-            # input_mask = 0
-            lens, cleavs, mods = model(data[0], data[1], input_mask)
-            lens = lens.squeeze()
-            pred_lens.extend(lens.tolist()), pred_cleavs.extend(cleavs.tolist()), pred_mods.extend(mods.tolist())
-            labl_lens.extend(data[2].tolist()), labl_cleavs.extend(data[4].tolist()), labl_mods.extend(data[3].tolist())
-            # cleavs = cleavs.squeeze()
-            mse_loss_val = mse_loss(lens, data[2])
-            ce_clv_loss_val = ce_loss(cleavs, data[4])
-            ce_mod_loss_val = ce_loss(mods, data[3])
-            loss = (mse_weight * mse_loss_val + ce_weight_clv * ce_clv_loss_val +
-                    ce_weight_mod * ce_mod_loss_val)  # / divider
-            # loss = sum(loss_lst) / len(loss_lst)
-            # loss = mse_loss_val
-            tot_mse_loss += float(mse_loss_val)
-            tot_ce_clv_loss += float(ce_clv_loss_val)
-            tot_ce_mod_loss += float(ce_mod_loss_val)
-            tot_loss += float(loss)
+                input_mask = data[0] == 0
+                # input_mask = 0
+                lens, cleavs, mods = model(data[0], data[1], input_mask)
+                lens = lens.squeeze()
+                
+                pred_lens.extend(lens.tolist())
+                pred_cleavs.extend(cleavs.tolist())
+                pred_mods.extend(mods.tolist())
+                
+                labl_lens.extend(data[2].tolist())
+                labl_cleavs.extend(data[4].tolist())
+                labl_mods.extend(data[3].tolist())
+                # cleavs = cleavs.squeeze()
+                mse_loss_val = mse_loss(lens, data[2])
+                ce_clv_loss_val = ce_loss(cleavs, data[4])
+                ce_mod_loss_val = ce_loss(mods, data[3])
+                loss = (mse_weight * mse_loss_val + ce_weight_clv * ce_clv_loss_val +
+                        ce_weight_mod * ce_mod_loss_val)  # / divider
+                # loss = sum(loss_lst) / len(loss_lst)
+                # loss = mse_loss_val
+                tot_mse_loss += float(mse_loss_val)
+                tot_ce_clv_loss += float(ce_clv_loss_val)
+                tot_ce_mod_loss += float(ce_mod_loss_val)
+                tot_loss += float(loss)
 
             # accurate_labels += multi_acc(lens, data[2])
             accurate_labels_0 += mse_acc(lens, data[2], err=0)

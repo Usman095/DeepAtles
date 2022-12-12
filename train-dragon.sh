@@ -3,11 +3,12 @@
 #SBATCH --output="atles-out/bak/atles.%j.%N.out"
 #SBATCH --nodes=1
 #SBATCH --gpus=1
-#SBATCH --ntasks-per-node=10
+#SBATCH --ntasks-per-node=1
+#SBATCH --cpus-per-task=10
 #SBATCH --mem=92gb
 #SBATCH --account=fsaeed
 #SBATCH --no-requeue
-#SBATCH -t 72:00:00
+#SBATCH --time=72:00:00
 
 mkdir atles-out/$SLURM_JOB_ID
 mkdir atles-out/$SLURM_JOB_ID/models

@@ -75,6 +75,9 @@ def runAtlesModel(loader, s_model, device):
             cleavs_out = torch.cat((cleavs_out, cleavs.to("cpu")), dim=0)
             mods_out = torch.cat((mods_out, mods.to("cpu")), dim=0)
             # bar.update(batch_idx)
+
+        min_len = config.get_config(section="ml", key="min_pep_len")
+        lens_out += min_len  # Add min_len to get actual peptide length
         return lens_out, cleavs_out, mods_out
 
 
@@ -349,6 +352,8 @@ def filtered_parallel_search(search_loader, peps, rank):
             pep_max += 1
 
         pep_batch = peps[pep_min:pep_max]
+        if len(pep_batch) == 0 or pep_min == pep_max:
+            continue
         pep_masses = []
 
         spec_batch = spec_batch.to(rank)
@@ -367,8 +372,12 @@ def filtered_parallel_search(search_loader, peps, rank):
             # spec_pep_mask[spec_pep_mask == 0] = float("inf")
             spec_pep_dist = 1.0 / process.pairwise_distances(spec_batch, l_pep_batch).to("cpu")
             l_pep_dist.append(spec_pep_dist)
+        # print(len(pep_batch))
+        # print(len(g_ids))
+        if len(g_ids) < keep_psms + 1:
+            g_ids.extend([g_ids[0]] * (keep_psms + 1 - len(g_ids)))
         g_ids = torch.IntTensor(g_ids)
-
+        # print(g_ids.shape)
         if not l_pep_dist:
             continue
         pep_sort = torch.cat(l_pep_dist, 1)

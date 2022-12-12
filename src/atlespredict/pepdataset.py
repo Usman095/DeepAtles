@@ -68,7 +68,7 @@ class PeptideDataset(data.Dataset):
             self.pep_list, self.prot_list, self.pep_mass_list, self.pep_modified_list, self.missed_cleavs = \
                 self.get_docoys()
 
-        print('{} Peptide Dataset Size: {}'.format(len(self.pep_list), "Decoy" if decoy else "Target"))
+        print('{} Peptide Dataset Size: {}'.format("Decoy" if decoy else "Target", len(self.pep_list)))
 
     def __len__(self):
         'Denotes the total number of samples'
@@ -192,7 +192,7 @@ def load_peps(pep_dir):
             for pep in peps:
                 pep = pep.strip()
                 mass = sim.get_pep_mass(pep)
-                modified = any(aa.islower() for aa in pep)
+                modified = any(aa.islower() for aa in pep if aa != "c")
                 if pep not in pep_set and len(pep) <= pep_seq_len:
                     pep_set.add(pep)
                     pep_list.append(pep)

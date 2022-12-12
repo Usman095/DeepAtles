@@ -34,6 +34,7 @@ class SpectraDataset(data.Dataset):
         self.max_pep_len = config.get_config(section='ml', key='max_pep_len')
         self.min_pep_len = config.get_config(section='ml', key='min_pep_len')
         self.spec_size = config.get_config(section='input', key='spec_size')
+        self.max_clvs = config.get_config(section='ml', key='max_clvs')
 
         self.mzs = []
         self.ints = []
@@ -52,12 +53,22 @@ class SpectraDataset(data.Dataset):
             self.is_mods.append(spec_data[5])
             self.miss_cleavs.append(spec_data[6])
 
-        num_classes = self.max_pep_len - self.min_pep_len + 1
+        # num_classes = self.max_pep_len - self.min_pep_len + 1
+        # class_counts = [0] * num_classes
+        # for cla in self.lens:
+        #     class_counts[cla] += 1
+        # class_weights = 1. / torch.FloatTensor(class_counts)
+        # self.class_weights_all = class_weights[self.lens]
+
+        num_classes = (self.max_clvs + 1) * 2
         class_counts = [0] * num_classes
-        for cla in self.lens:
-            class_counts[cla] += 1
+        for clv, mod in zip(self.miss_cleavs, self.is_mods):
+            class_counts[clv * 2 + mod] += 1
+
+        # print(class_counts)
+
         class_weights = 1. / torch.FloatTensor(class_counts)
-        self.class_weights_all = class_weights[self.lens]
+        self.class_weights_all = class_weights[[clv * 2 + mod for clv, mod in zip(self.miss_cleavs, self.is_mods)]]
         
         print('dataset size: {}'.format(len(data)))
         

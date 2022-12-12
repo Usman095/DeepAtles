@@ -3,7 +3,6 @@ import os
 from collections import defaultdict
 from os.path import dirname, join
 
-import apex
 import pandas as pd
 import torch
 import torch.distributed as dist
@@ -20,8 +19,11 @@ def run_atles(rank, world_size, spec_loader):
     model_ = model.Net().to(rank)
     model_ = nn.parallel.DistributedDataParallel(model_, device_ids=[rank])
     # model_.load_state_dict(torch.load('atles-out/16403437/models/pt-mass-ch-16403437-1toz70vi-472.pt')['model_state_dict'])
+    # model_.load_state_dict(torch.load(
+    # '/lclhome/mtari008/DeepAtles/atles-out/123/models/pt-mass-ch-123-2zgb2ei9-385.pt')['model_state_dict'])
     model_.load_state_dict(torch.load(
-        '/lclhome/mtari008/DeepAtles/atles-out/123/models/pt-mass-ch-123-2zgb2ei9-385.pt')['model_state_dict'])
+        '/lclhome/mtari008/DeepAtles/atles-out/1382/models/nist-massive-deepnovo-mass-ch-1382-c8mlqbq7-157.pt'
+    )['model_state_dict'])
     model_ = model_.module
     model_.eval()
     print(model_)

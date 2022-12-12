@@ -7,7 +7,6 @@ import shutil
 import timeit
 from os.path import join
 
-import apex
 import numpy as np
 import torch
 import torch.distributed as dist
@@ -35,7 +34,7 @@ test_accuracy = []
 
 
 def run_par(rank, world_size):
-    model_name = "pt-mass-ch"  # first k is spec size second is batch size
+    model_name = "nist-massive-deepnovo-mass-ch"  # first k is spec size second is batch size
     print("Training {}.".format(model_name))
     wandb.init(project="deepatles", entity="pcds")
     wandb.run.name = "{}-{}-{}".format(model_name, os.environ['SLURM_JOB_ID'], wandb.run.id)
@@ -53,7 +52,7 @@ def run_par(rank, world_size):
     weighted_sampler = WeightedRandomSampler(weights=weights_all, num_samples=len(weights_all), replacement=True)
     train_loader = torch.utils.data.DataLoader(
         dataset=train_dataset, num_workers=0, collate_fn=psm_collate,
-        batch_size=batch_size, shuffle=True
+        batch_size=batch_size, sampler=weighted_sampler,
     )
 
     val_loader = torch.utils.data.DataLoader(
@@ -90,9 +89,11 @@ def run_par(rank, world_size):
             nn.init.xavier_uniform_(p)
 
     optimizer = optim.Adam(model_.parameters(), lr=lr, weight_decay=weight_decay)
-    model_, optimizer = apex.amp.initialize(model_, optimizer, opt_level="O2")
-    model_ = apex.parallel.DistributedDataParallel(model_)
+    # model_, optimizer = apex.amp.initialize(model_, optimizer, opt_level="O2")
+    model_ = nn.parallel.DistributedDataParallel(model_)
     # model_.load_state_dict(torch.load("./models/attn-2-199.pt")["model_state_dict"])
+
+    scaler = torch.cuda.amp.GradScaler()
 
     wandb.watch(model_)
     for epoch in range(num_epochs):
@@ -100,7 +101,7 @@ def run_par(rank, world_size):
         print("Epoch: {}".format(l_epoch))
         # train_sampler.set_epoch(l_epoch)
         start_time = timeit.default_timer()
-        loss = trainmodel.train(model_, rank, train_loader, mse_loss, ce_loss, optimizer, l_epoch)
+        loss = trainmodel.train(model_, rank, train_loader, mse_loss, ce_loss, optimizer, scaler, l_epoch)
         trainmodel.test(model_, rank, val_loader, mse_loss, ce_loss, l_epoch)
         elapsed = timeit.default_timer() - start_time
         print("time takes: {} secs.".format(elapsed))
