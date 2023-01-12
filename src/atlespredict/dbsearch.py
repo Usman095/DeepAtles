@@ -332,16 +332,19 @@ def filtered_parallel_search(search_loader, peps, rank):
 
     keep_psms = config.get_config(key="keep_psms", section="search")
     precursor_tolerance = config.get_config(key="precursor_tolerance", section="search")
+    tol_type = config.get_config(key="precursor_tolerance_type", section="search")
 
     pbar = tqdm(search_loader, file=sys.stdout)
     pbar.set_description('Running Database Search...')
     # with progressbar.ProgressBar(max_value=len(search_loader)) as bar:
     for idx, [spec_idx, spec_batch, spec_masses] in enumerate(pbar):
         l_tol = precursor_tolerance
-        # min_mass = max(spec_masses[0] - l_tol, 0)
-        # max_mass = spec_masses[-1] + l_tol
-        min_mass = max(spec_masses[0] - ppm(spec_masses[0], l_tol), 0)
-        max_mass = spec_masses[-1] + ppm(spec_masses[-1], l_tol)
+        if tol_type == "ppm":
+            min_mass = max(spec_masses[0] - ppm(spec_masses[0], l_tol), 0)
+            max_mass = spec_masses[-1] + ppm(spec_masses[-1], l_tol)
+        else:
+            min_mass = max(spec_masses[0] - l_tol, 0)
+            max_mass = spec_masses[-1] + l_tol
 
         pep_min = pep_max = 0
         while (pep_min < len(peps) and
