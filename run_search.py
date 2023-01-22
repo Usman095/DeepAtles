@@ -21,7 +21,8 @@ def run_atles(rank, world_size, spec_loader):
     model_ = nn.parallel.DistributedDataParallel(model_, device_ids=[rank])
     # model_.load_state_dict(torch.load('atles-out/16403437/models/pt-mass-ch-16403437-1toz70vi-472.pt')['model_state_dict'])
     # model_.load_state_dict(torch.load(
-    # '/lclhome/mtari008/DeepAtles/atles-out/123/models/pt-mass-ch-123-2zgb2ei9-385.pt')['model_state_dict'])
+    #     '/lclhome/mtari008/DeepAtles/atles-out/123/models/pt-mass-ch-123-2zgb2ei9-385.pt'
+    #     )['model_state_dict'])
     model_.load_state_dict(torch.load(
         '/lclhome/mtari008/DeepAtles/atles-out/1382/models/nist-massive-deepnovo-mass-ch-1382-c8mlqbq7-157.pt'
     )['model_state_dict'])
@@ -117,12 +118,21 @@ def run_specollate_par(rank, world_size):
     min_pep_len = config.get_config(key="min_pep_len", section="ml")
     max_pep_len = config.get_config(key="max_pep_len", section="ml")
     max_clvs = config.get_config(key="max_clvs", section="ml")
+    
     length_filter = config.get_config(key="length_filter", section="filter")
+    len_tol_pos = config.get_config(key="len_tol_pos", section="filter") if length_filter else 0
+    len_tol_neg = config.get_config(key="len_tol_neg", section="filter") if length_filter else 0
+    missed_cleavages_filter = config.get_config(key="missed_cleavages_filter", section="filter")
+    modification_filter = config.get_config(key="modification_filter", section="filter")
+    
     print("Creating spectra filtered dictionary.")
     spec_dataset.filt_dict = defaultdict(list)
     for idx, (l, clv, mod) in enumerate(zip(lens, cleavs, mods)):
         if min_pep_len <= l <= max_pep_len and 0 <= clv <= max_clvs:
-            key = '{}-{}-{}'.format(l, clv, int(mod)) if length_filter else '{}-{}'.format(clv, int(mod))
+            l = int(l) if length_filter else 0
+            clv = int(clv) if missed_cleavages_filter else 0
+            mod = int(mod) if modification_filter else 0
+            key = '{}-{}-{}'.format(l, clv, int(mod))
             # FIXME: needs to add actual spectra embeddings
             spec_dataset.filt_dict[key].append([idx, e_specs[idx], spec_dataset.masses[idx]])
 
@@ -134,7 +144,10 @@ def run_specollate_par(rank, world_size):
             pep_dataset.pep_list, pep_dataset.missed_cleavs, pep_dataset.pep_modified_list)):
         pep_len = sum(map(str.isupper, pep))
         if min_pep_len <= pep_len <= max_pep_len and 0 <= clv <= max_clvs:
-            key = '{}-{}-{}'.format(pep_len, clv, int(mod)) if length_filter else '{}-{}'.format(clv, int(mod))
+            pep_len = int(pep_len) if length_filter else 0
+            clv = int(clv) if missed_cleavages_filter else 0
+            mod = int(mod) if modification_filter else 0
+            key = '{}-{}-{}'.format(pep_len, clv, int(mod))
             # FIXME: needs to add actual peptide embeds
             pep_dataset.filt_dict[key].append([idx, e_peps[idx], pep_dataset.pep_mass_list[idx]])
 
@@ -143,27 +156,39 @@ def run_specollate_par(rank, world_size):
     if rank == 0:
         search_start_time = time.time()
     # Run database search for each dict item
+    unfiltered_time = 0
     spec_inds = []
     pep_inds = []
     psm_vals = []
     print("Running filtered {} database search.".format("target" if rank == 0 else "decoy"))
     for key in spec_dataset.filt_dict:
-        if key not in pep_dataset.filt_dict:
-            print("Key {} not found in pep_dataset".format(key))
-            continue
-        print("Key {} found. {} peptides in pep_dataset".format(key, len(pep_dataset.filt_dict[key])))
-        spec_subset = spec_dataset.filt_dict[key]
-        search_loader = torch.utils.data.DataLoader(
-            dataset=spec_subset, num_workers=0, batch_size=search_spec_batch_size, shuffle=False)
+        print('Searching for key {}.'.format(key))
+        for tol in range(len_tol_neg, len_tol_pos + 1):
+            key_len, key_clv, key_mod = int(key.split('-')[0]), int(key.split('-')[1]), int(key.split('-')[2])
+            pep_key = '{}-{}-{}'.format(key_len + tol, key_clv, key_mod)
+            if pep_key not in pep_dataset.filt_dict:
+                print("Key {} not found in pep_dataset".format(pep_key))
+                continue
+            print("Searching against key {} with {} peptides.".format(pep_key, len(pep_dataset.filt_dict[pep_key])))
+            spec_subset = spec_dataset.filt_dict[key]
+            search_loader = torch.utils.data.DataLoader(
+                dataset=spec_subset, num_workers=0, batch_size=search_spec_batch_size, shuffle=False)
+            unfiltered_start_time = time.time()
+            l_spec_inds, l_pep_inds, l_psm_vals = dbsearch.filtered_parallel_search(
+                search_loader, pep_dataset.filt_dict[pep_key], rank)
+            unfiltered_time += time.time() - unfiltered_start_time
 
-        l_spec_inds, l_pep_inds, l_psm_vals = dbsearch.filtered_parallel_search(
-            search_loader, pep_dataset.filt_dict[key], rank)
+            if not l_spec_inds:
+                continue
+            spec_inds.extend(l_spec_inds)
+            pep_inds.append(l_pep_inds)
+            psm_vals.append(l_psm_vals)
 
-        if not l_spec_inds:
-            continue
-        spec_inds.extend(l_spec_inds)
-        pep_inds.append(l_pep_inds)
-        psm_vals.append(l_psm_vals)
+        # if not l_spec_inds:
+        #     continue
+        # spec_inds.extend(l_spec_inds)
+        # pep_inds.append(l_pep_inds)
+        # psm_vals.append(l_psm_vals)
 
     pep_inds = torch.cat(pep_inds, 0)
     psm_vals = torch.cat(psm_vals, 0)
@@ -171,6 +196,7 @@ def run_specollate_par(rank, world_size):
     print("{} PSMS: {}".format("Target" if rank == 0 else "Decoy", len(pep_inds)))
 
     dist.barrier()
+    print("Unfiltered Time: {}".format(unfiltered_time))
     if rank == 0:
         print("Database Search Time Taken: {}".format(time.time() - search_start_time))
         print("Database Search Time + Atles Time Taken: {}".format((time.time() - search_start_time) + atles_time))

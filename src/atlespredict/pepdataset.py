@@ -33,12 +33,11 @@ class PeptideDataset(data.Dataset):
         self.seq_len = config.get_config(section='ml', key='pep_seq_len')
 
         print("Loading peptides...")
-        pep_lst, prot_list, pep_mass_lst, pep_modified_lst = load_peps(self.pep_path)
+        # pep_lst, prot_list, pep_mass_lst, pep_modified_lst = load_peps(self.pep_path)
+        out = load_peps(self.pep_path)
 
-        self.pep_lst_set = set(pep_lst)
-
-        print("peptide list len: {}".format(len(pep_lst)))
-        print("peptide set len: {}".format(len(self.pep_lst_set)))
+        print("peptide list len: {}".format(len(out)))
+        # print("peptide set len: {}".format(len(self.pep_lst_set)))
 #         out_dir = "/disk/raptor-2/mtari008/data/deepsnap/preprocessed-human-hcd-tryp-best/pts/"
 #         with open(join(out_dir, 'pep_pickle.pkl'), 'rb') as f:
 #             search_peps = pickle.load(f)
@@ -53,11 +52,17 @@ class PeptideDataset(data.Dataset):
 #                 pep_modified_lst.append(any(aa.islower() for aa in s_pep))
 #         print("New peptides added: {}".format(added_counter))
 
-        all_sorts = list(zip(*sorted(zip(pep_lst, prot_list, pep_mass_lst, pep_modified_lst), key=lambda x: x[2])))
-        self.pep_list = all_sorts[0]
-        self.prot_list = all_sorts[1]
-        self.pep_mass_list = all_sorts[2]
-        self.pep_modified_list = all_sorts[3]
+        print("Sorting peptides...")
+        # all_sorts = list(zip(*sorted(zip(pep_lst, prot_list, pep_mass_lst, pep_modified_lst), key=lambda x: x[2])))
+        out.sort(key=lambda x: x[2])
+        self.pep_list, self.prot_list, self.pep_mass_list, self.pep_modified_list = zip(*out)
+        self.pep_lst_set = set(self.pep_list)
+        # self.pep_list = all_sorts[0]
+        # self.prot_list = all_sorts[1]
+        # self.pep_mass_list = all_sorts[2]
+        # self.pep_modified_list = all_sorts[3]
+        print("Peptides sorted.")
+        print("Getting missed cleavages...")
         self.missed_cleavs = []
         for pep in self.pep_list:
             miss_clvs = (pep.count("K") + pep.count("R")) - (pep.count("KP") + pep.count("RP"))
@@ -65,6 +70,7 @@ class PeptideDataset(data.Dataset):
                 miss_clvs -= 1
             self.missed_cleavs.append(miss_clvs)
         if decoy:
+            print("Generating decoy database...")
             self.pep_list, self.prot_list, self.pep_mass_list, self.pep_modified_list, self.missed_cleavs = \
                 self.get_docoys()
 
@@ -180,6 +186,7 @@ def load_peps(pep_dir):
         temp_prot = ""
         pbar = tqdm(lines, file=sys.stdout)
         pbar.set_description('Loading Peptides...')
+        out = []
         # with progressbar.ProgressBar(max_value=len(lines)) as bar:
         for line in pbar:
             line = line.strip().replace("C", "Cc")
@@ -194,13 +201,14 @@ def load_peps(pep_dir):
                 mass = sim.get_pep_mass(pep)
                 modified = any(aa.islower() for aa in pep if aa != "c")
                 if pep not in pep_set and len(pep) <= pep_seq_len:
+                    out.append((pep, temp_prot, mass, modified))
                     pep_set.add(pep)
-                    pep_list.append(pep)
-                    masses.append(mass)
-                    modifieds.append(modified)
-                    prot_list.append(temp_prot)
+                    # pep_list.append(pep)
+                    # masses.append(mass)
+                    # modifieds.append(modified)
+                    # prot_list.append(temp_prot)
                     tot_pep_count += 1
             # bar.update(i)
         tqdm.write("Peptides written: {}".format(tot_pep_count))
 
-        return pep_list, prot_list, masses, modifieds
+        return out
