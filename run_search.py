@@ -45,6 +45,7 @@ def run_atles(rank, world_size, spec_loader):
 
 def run_specollate_par(rank, world_size):
     setup(rank, world_size)
+    # rank = config.get_config(key="rank", section="input")
     if torch.cuda.is_available():
         torch.cuda.set_device(rank)
     mgf_dir = config.get_config(key="mgf_dir", section="search")
@@ -224,7 +225,7 @@ def run_specollate_par(rank, world_size):
 
 def setup(rank, world_size):
     os.environ['MASTER_ADDR'] = 'localhost'
-    os.environ['MASTER_PORT'] = '12345'
+    os.environ['MASTER_PORT'] = str(config.get_config(key="master_port", section="input"))
     torch.cuda.set_device(rank)
     dist.init_process_group(backend='nccl', world_size=world_size, rank=rank)
 
@@ -246,5 +247,6 @@ if __name__ == '__main__':
     num_gpus = torch.cuda.device_count()
     print("Num GPUs: {}".format(num_gpus))
     start_time = time.time()
-    mp.spawn(run_specollate_par, args=(2,), nprocs=2, join=True)
+    # mp.spawn(run_specollate_par, args=(2,), nprocs=2, join=True)
+    mp.spawn(run_specollate_par, args=(1,), nprocs=1, join=True)
     print("Total time: {}".format(time.time() - start_time))

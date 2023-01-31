@@ -28,6 +28,7 @@ core.*
 *.tar.gz
 out
 /models
+out_*
 
 # Created by .ignore support plugin (hsz.mobi)
 ### Python template
