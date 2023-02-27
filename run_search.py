@@ -212,7 +212,7 @@ def run_specollate_par(rank, world_size):
     if rank == 0:
         print("Generating percolator pin files...")
     global_out = postprocess.generate_percolator_input(
-        pep_inds, psm_vals, spec_inds, pep_dataset, spec_dataset, "target" if rank == 0 else "decoy")
+        pep_inds, psm_vals, spec_inds, pep_dataset, spec_dataset.charges, "target" if rank == 0 else "decoy")
     df = pd.DataFrame(global_out, columns=cols)
     df.sort_values(by="SNAP", inplace=True, ascending=False)
     df.to_csv(join(out_pin_dir, "target.pin" if rank == 0 else "decoy.pin"), sep="\t", index=False)

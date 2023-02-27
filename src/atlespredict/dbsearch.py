@@ -5,6 +5,8 @@ import torch
 import progressbar
 import torch.nn.functional as F
 from tqdm import tqdm
+# from memory_profiler import profile
+import bisect
 
 from src.atlesconfig import config
 from src.atlestrain import process
@@ -329,6 +331,7 @@ def filtered_parallel_search(search_loader, peps, rank):
     spec_inds = []
     sort_inds = []
     sort_vals = []
+    pep_min = pep_max = 0
 
     keep_psms = config.get_config(key="keep_psms", section="search")
     precursor_tolerance = config.get_config(key="precursor_tolerance", section="search")
@@ -346,13 +349,8 @@ def filtered_parallel_search(search_loader, peps, rank):
             min_mass = max(spec_masses[0] - l_tol, 0)
             max_mass = spec_masses[-1] + l_tol
 
-        pep_min = pep_max = 0
-        while (pep_min < len(peps) and
-                min_mass - peps[pep_min][2] > 0.001):
-            pep_min += 1
-        while (pep_max < len(peps) and
-                max_mass - peps[pep_max][2] >= 0.001):
-            pep_max += 1
+        pep_min = bisect.bisect_left(peps, min_mass, lo=pep_min, key=lambda x: x[2])
+        pep_max = bisect.bisect_right(peps, max_mass, lo=pep_max, key=lambda x: x[2])
 
         pep_batch = peps[pep_min:pep_max]
         if len(pep_batch) == 0 or pep_min == pep_max:
@@ -361,7 +359,7 @@ def filtered_parallel_search(search_loader, peps, rank):
 
         spec_batch = spec_batch.to(rank)
         # print("pep batch len: {}".format(len(pep_batch)))
-        l_pep_batch_size = 16384
+        l_pep_batch_size = 1024
         # l_pep_batch_size = 32768
         pep_loader = torch.utils.data.DataLoader(
             dataset=pep_batch, batch_size=l_pep_batch_size, shuffle=False)
@@ -374,6 +372,7 @@ def filtered_parallel_search(search_loader, peps, rank):
             # spec_pep_mask = get_search_mask(spec_masses, l_pep_masses, precursor_tolerance).to(rank)
             # spec_pep_mask[spec_pep_mask == 0] = float("inf")
             spec_pep_dist = 1.0 / process.pairwise_distances(spec_batch, l_pep_batch).to("cpu")
+            # spec_pep_dist = spec_pep_dist * spec_pep_mask
             l_pep_dist.append(spec_pep_dist)
         # print(len(pep_batch))
         # print(len(g_ids))
@@ -388,12 +387,11 @@ def filtered_parallel_search(search_loader, peps, rank):
         pep_sort = (pep_sort * spec_pep_mask)
         pep_sort = torch.cat((pep_sort, torch.zeros(len(spec_batch), keep_psms + 1)), axis=1)
         pep_lcn = np.ma.masked_array(pep_sort, mask=pep_sort == 0).min(1).data
-        pep_sort = pep_sort.sort(descending=True, stable=True)
+        pep_sort = torch.topk(pep_sort, k=keep_psms + 1, largest=True, sorted=True)
         spec_inds.extend(spec_idx)
         # no need to offset as g_ids is constructed for pep_batch.
-        sort_inds.append(g_ids[pep_sort.indices[:, :keep_psms + 1]])
-        sort_vals.append(torch.cat((pep_sort.values[:, :keep_psms + 1],
-                                    torch.from_numpy(pep_lcn).unsqueeze(1)), 1))
+        sort_inds.append(g_ids[pep_sort.indices])
+        sort_vals.append(torch.cat((pep_sort.values, torch.from_numpy(pep_lcn).unsqueeze(1)), 1))
 
         # bar.update(idx)
     if not spec_inds:

@@ -3,7 +3,7 @@ import torch
 from src.atlesconfig import config
 
 
-def generate_percolator_input(l_pep_inds, l_pep_vals, l_spec_inds, pd_dataset, spec_dataset, res_type):
+def generate_percolator_input(l_pep_inds, l_pep_vals, l_spec_inds, pd_dataset, spec_charges, res_type):
     assert res_type == "target" or res_type == "decoy"
     assert len(l_pep_inds) == len(l_pep_vals) == len(l_spec_inds)
     pin_charge = config.get_config(section="search", key="charge")
@@ -18,17 +18,17 @@ def generate_percolator_input(l_pep_inds, l_pep_vals, l_spec_inds, pd_dataset, s
             pep_val = pep_vals_row[iidx]
             if pep_val.item() > 0:
                 charge = [0] * pin_charge
-                ch_idx = min(spec_dataset.charges[l_spec_idx], pin_charge)
+                ch_idx = min(spec_charges[l_spec_idx], pin_charge)
                 charge[ch_idx - 1] = 1
                 label = 1 if res_type == "target" else -1
                 out_row = [f"{res_type}-{tot_count}", label, l_spec_idx, pep_val.item()]
-                spec_mass = spec_dataset.charges[l_spec_idx]
+                spec_mass = spec_charges[l_spec_idx]
                 pep_mass = pd_dataset.pep_mass_list[pep_ind.item()]
                 out_row.append(spec_mass)
                 out_row.append(pep_mass)
 #                 out_row.append(((pep_val - pep_vals_row[iidx + 1]).item()) / max_snap)
 #                 out_row.append(((pep_val - pep_vals_row[-1]).item()) / max_snap)
-                out_row.append(((pep_val - pep_vals_row[-3]).item()) / max(pep_val.item(), 1.0))
+                out_row.append(((pep_val - pep_vals_row[-1]).item()) / max(pep_val.item(), 1.0))
                 out_row.append(((pep_val - pep_vals_row[iidx + 1]).item()) / max(pep_val.item(), 1.0))
                 out_row.extend(charge)
                 out_row.append(spec_mass - pep_mass)

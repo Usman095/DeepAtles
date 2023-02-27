@@ -7,6 +7,7 @@ import progressbar
 import torch
 from torch.utils import data
 from tqdm import tqdm
+from os.path import join
 
 from src.atlesconfig import config
 from src.atlespredict import preprocess
@@ -16,7 +17,7 @@ from src.atlesutils import simulatespectra as sim
 class PeptideDataset(data.Dataset):
     'Characterizes a dataset for PyTorch'
 
-    def __init__(self, dir_path, decoy=False):
+    def __init__(self, dir_path, fine_name=None, decoy=False):
         'Initialization'
 
         in_path = Path(dir_path)
@@ -34,7 +35,7 @@ class PeptideDataset(data.Dataset):
 
         print("Loading peptides...")
         # pep_lst, prot_list, pep_mass_lst, pep_modified_lst = load_peps(self.pep_path)
-        out = load_peps(self.pep_path)
+        out = load_peps(self.pep_path, fine_name)
 
         print("peptide list len: {}".format(len(out)))
         # print("peptide set len: {}".format(len(self.pep_lst_set)))
@@ -159,8 +160,11 @@ def add_mods(pep, mods, num_mods):
     return result_peps
 
 
-def load_peps(pep_dir):
-    fasta_files = preprocess.verify_in_dir(pep_dir, "fasta")
+def load_peps(pep_dir, file_name=None):
+    if file_name:
+        fasta_files = [join(pep_dir, file_name)]
+    else:
+        fasta_files = preprocess.verify_in_dir(pep_dir, "fasta")
 
     use_mods = config.get_config(key="use_mods", section="input")
     mods_list = config.Mods

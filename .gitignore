@@ -29,6 +29,8 @@ core.*
 out
 /models
 out_*
+out-*
+index
 
 # Created by .ignore support plugin (hsz.mobi)
 ### Python template
