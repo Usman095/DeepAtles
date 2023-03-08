@@ -359,7 +359,7 @@ def filtered_parallel_search(search_loader, peps, rank):
 
         spec_batch = spec_batch.to(rank)
         # print("pep batch len: {}".format(len(pep_batch)))
-        l_pep_batch_size = 1024
+        l_pep_batch_size = 512
         # l_pep_batch_size = 32768
         pep_loader = torch.utils.data.DataLoader(
             dataset=pep_batch, batch_size=l_pep_batch_size, shuffle=False)
@@ -376,8 +376,9 @@ def filtered_parallel_search(search_loader, peps, rank):
             l_pep_dist.append(spec_pep_dist)
         # print(len(pep_batch))
         # print(len(g_ids))
-        if len(g_ids) < keep_psms + 1:
-            g_ids.extend([g_ids[0]] * (keep_psms + 1 - len(g_ids)))
+        # if len(g_ids) < keep_psms + 1:
+        #     g_ids.extend([g_ids[0]] * (keep_psms + 1 - len(g_ids)))
+        g_ids.extend([g_ids[0]] * (keep_psms + 1))
         g_ids = torch.IntTensor(g_ids)
         # print(g_ids.shape)
         if not l_pep_dist:

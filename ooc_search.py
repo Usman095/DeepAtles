@@ -264,8 +264,11 @@ def search_database(rank, spec_filt_dict, spec_charges):
         pep_inds = []
         psm_vals = []
         pep_info = PepInfo([], [], [])
+        cum = 0
         for tol in range(len_tol_neg, len_tol_pos + 1):
             key_len, key_clv, key_mod = int(key.split('-')[0]), int(key.split('-')[1]), int(key.split('-')[2])
+            if key_len + tol < min_pep_len or key_len + tol > max_pep_len:
+                continue
             file_name = '{}-{}-{}'.format(key_len + tol, key_clv, key_mod)
             pep_classes_path = join(index_path, 'peptide_classes')
             pep_file_path = join(pep_classes_path, file_name)
@@ -278,18 +281,19 @@ def search_database(rank, spec_filt_dict, spec_charges):
             # pep_loader = torch.utils.data.DataLoader(
             #     dataset=pep_dataset, batch_size=pep_batch_size,
             #     collate_fn=dbsearch.pep_collate)
-            # pep_info.pep_list += pep_dataset.pep_list
-            # pep_info.prot_list += pep_dataset.prot_list
-            # pep_info.pep_mass_list += pep_dataset.pep_mass_list
+            pep_info.pep_list += pep_dataset.pep_list
+            pep_info.prot_list += pep_dataset.prot_list
+            pep_info.pep_mass_list += pep_dataset.pep_mass_list
 
             # load embeddings
             pep_embeddings_path = join(index_path, 'peptide_embeddings' if rank == 0 else 'decoy_embeddings')
             embedding_file_path = join(pep_embeddings_path, file_name)
             e_peps = torch.load(embedding_file_path)
-            # pep_data = [[idx + class_offsets[file_name], e_pep, mass] \
-            #     for idx, (e_pep, mass) in enumerate(zip(e_peps, pep_dataset.pep_mass_list))]
-            pep_data = [[idx + class_offsets[file_name], e_pep, mass]
+            # pep_data = [[idx + class_offsets[file_name], e_pep, mass]
+            #             for idx, (e_pep, mass) in enumerate(zip(e_peps, pep_dataset.pep_mass_list))]
+            pep_data = [[idx + cum, e_pep, mass]
                         for idx, (e_pep, mass) in enumerate(zip(e_peps, pep_dataset.pep_mass_list))]
+            cum += len(pep_data)
 
             print("Searching against key {} with {} peptides.".format(file_name, len(pep_dataset.pep_mass_list)))
             spec_subset = spec_filt_dict[key]
@@ -303,23 +307,23 @@ def search_database(rank, spec_filt_dict, spec_charges):
 
             if not l_spec_inds:
                 continue
-            # spec_inds.extend(l_spec_inds)
-            # pep_inds.append(l_pep_inds)
-            # psm_vals.append(l_psm_vals)
+            spec_inds.extend(l_spec_inds)
+            pep_inds.append(l_pep_inds)
+            psm_vals.append(l_psm_vals)
 
-        # if not l_spec_inds:
-        #     continue
+        if not l_spec_inds:
+            continue
         # spec_inds.extend(l_spec_inds)
         # pep_inds.append(l_pep_inds)
         # psm_vals.append(l_psm_vals)
 
-        # pep_inds = torch.cat(pep_inds, 0)
-        # psm_vals = torch.cat(psm_vals, 0)
+        pep_inds = torch.cat(pep_inds, 0)
+        psm_vals = torch.cat(psm_vals, 0)
 
         print("{} PSMS: {}".format("Target" if rank == 0 else "Decoy", len(pep_inds)))
 
         # 4 - Write PSMs to pin file
-        # write_to_pin(rank, pep_inds, psm_vals, spec_inds, pep_info, spec_charges, cols)
+        write_to_pin(rank, pep_inds, psm_vals, spec_inds, pep_info, spec_charges, cols)
 
 
 def run_atles_search(rank, world_size):

@@ -30,6 +30,7 @@ out
 /models
 out_*
 out-*
+percolator-*
 index
 
 # Created by .ignore support plugin (hsz.mobi)
