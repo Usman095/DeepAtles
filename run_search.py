@@ -12,8 +12,14 @@ import torch.nn as nn
 from tqdm import tqdm
 
 from src.atlesconfig import config
-from src.atlespredict import (dbsearch, pepdataset, postprocess, preprocess, specdataset, specollate_model)
-from src.atlestrain import dataset, model
+from src.atlespredict import (
+    dbsearch,
+    pepdataset,
+    postprocess,
+    specdataset,
+    specollate_model,
+)
+from src.atlestrain import model
 
 
 def run_atles(rank, world_size, spec_loader):
@@ -23,9 +29,11 @@ def run_atles(rank, world_size, spec_loader):
     # model_.load_state_dict(torch.load(
     #     '/lclhome/mtari008/DeepAtles/atles-out/123/models/pt-mass-ch-123-2zgb2ei9-385.pt'
     #     )['model_state_dict'])
-    model_.load_state_dict(torch.load(
-        '/lclhome/mtari008/DeepAtles/atles-out/1382/models/nist-massive-deepnovo-mass-ch-1382-c8mlqbq7-157.pt'
-    )['model_state_dict'])
+    model_.load_state_dict(
+        torch.load(
+            "/lclhome/mtari008/DeepAtles/atles-out/1382/models/nist-massive-deepnovo-mass-ch-1382-c8mlqbq7-157.pt"
+        )["model_state_dict"]
+    )
     model_ = model_.module
     model_.eval()
     print(model_)
@@ -39,7 +47,7 @@ def run_atles(rank, world_size, spec_loader):
     return (
         torch.round(lens).type(torch.IntTensor).squeeze().tolist(),
         pred_cleavs.squeeze().tolist(),
-        pred_mods.squeeze().tolist()
+        pred_mods.squeeze().tolist(),
     )
 
 
@@ -64,12 +72,14 @@ def run_specollate_par(rank, world_size):
         tqdm.write("Reading input files...")
 
     batch_size = config.get_config(section="ml", key="batch_size")
-    prep_path = config.get_config(section='search', key='prep_path')
+    prep_path = config.get_config(section="search", key="prep_path")
     spec_batch_size = config.get_config(key="spec_batch_size", section="search")
     spec_dataset = specdataset.SpectraDataset(join(prep_path, "specs.pkl"))
     spec_loader = torch.utils.data.DataLoader(
-        dataset=spec_dataset, batch_size=spec_batch_size,
-        collate_fn=dbsearch.spec_collate)
+        dataset=spec_dataset,
+        batch_size=spec_batch_size,
+        collate_fn=dbsearch.spec_collate,
+    )
 
     atles_start_time = time.time()
     lens, cleavs, mods = run_atles(rank, 1, spec_loader)
@@ -80,8 +90,8 @@ def run_specollate_par(rank, world_size):
 
     pep_dataset = pepdataset.PeptideDataset(pep_dir, decoy=rank == 1)
     pep_loader = torch.utils.data.DataLoader(
-        dataset=pep_dataset, batch_size=pep_batch_size,
-        collate_fn=dbsearch.pep_collate)
+        dataset=pep_dataset, batch_size=pep_batch_size, collate_fn=dbsearch.pep_collate
+    )
 
     dist.barrier()
 
@@ -99,7 +109,7 @@ def run_specollate_par(rank, world_size):
     # snap_model.load_state_dict(torch.load('models/512-embed-2-lstm-SnapLoss-noch-80k-nist-massive-52.pt')['model_state_dict'])
     # below one has 27.5k peps
     # snap_model.load_state_dict(torch.load('models/hcd/512-embed-2-lstm-SnapLoss2D-inputCharge-80k-nist-massive-116.pt')['model_state_dict'])
-    snap_model.load_state_dict(torch.load('specollate-model/{}'.format(model_name))['model_state_dict'])
+    snap_model.load_state_dict(torch.load("specollate-model/{}".format(model_name))["model_state_dict"])
     snap_model = snap_model.module
     snap_model.eval()
     print(snap_model)
@@ -109,7 +119,7 @@ def run_specollate_par(rank, world_size):
     print("Spectra done!")
 
     dist.barrier()
-    
+
     print("Processing {}...".format("Peptides" if rank == 0 else "Decoys"))
     e_peps = dbsearch.runSpeCollateModel(pep_loader, snap_model, "peps", rank)
     print("Peptides done!")
@@ -119,13 +129,13 @@ def run_specollate_par(rank, world_size):
     min_pep_len = config.get_config(key="min_pep_len", section="ml")
     max_pep_len = config.get_config(key="max_pep_len", section="ml")
     max_clvs = config.get_config(key="max_clvs", section="ml")
-    
+
     length_filter = config.get_config(key="length_filter", section="filter")
     len_tol_pos = config.get_config(key="len_tol_pos", section="filter") if length_filter else 0
     len_tol_neg = config.get_config(key="len_tol_neg", section="filter") if length_filter else 0
     missed_cleavages_filter = config.get_config(key="missed_cleavages_filter", section="filter")
     modification_filter = config.get_config(key="modification_filter", section="filter")
-    
+
     print("Creating spectra filtered dictionary.")
     spec_dataset.filt_dict = defaultdict(list)
     for idx, (l, clv, mod) in enumerate(zip(lens, cleavs, mods)):
@@ -133,7 +143,7 @@ def run_specollate_par(rank, world_size):
             l = int(l) if length_filter else 0
             clv = int(clv) if missed_cleavages_filter else 0
             mod = int(mod) if modification_filter else 0
-            key = '{}-{}-{}'.format(l, clv, int(mod))
+            key = "{}-{}-{}".format(l, clv, int(mod))
             # FIXME: needs to add actual spectra embeddings
             spec_dataset.filt_dict[key].append([idx, e_specs[idx], spec_dataset.masses[idx]])
 
@@ -141,14 +151,19 @@ def run_specollate_par(rank, world_size):
     ####### rank==1 decides whether to search against decoy database #######
     pep_dataset.filt_dict = defaultdict(list)
     print("Creating peptide filtered dictionary.")
-    for idx, (pep, clv, mod) in enumerate(zip(
-            pep_dataset.pep_list, pep_dataset.missed_cleavs, pep_dataset.pep_modified_list)):
+    for idx, (pep, clv, mod) in enumerate(
+        zip(
+            pep_dataset.pep_list,
+            pep_dataset.missed_cleavs,
+            pep_dataset.pep_modified_list,
+        )
+    ):
         pep_len = sum(map(str.isupper, pep))
         if min_pep_len <= pep_len <= max_pep_len and 0 <= clv <= max_clvs:
             pep_len = int(pep_len) if length_filter else 0
             clv = int(clv) if missed_cleavages_filter else 0
             mod = int(mod) if modification_filter else 0
-            key = '{}-{}-{}'.format(pep_len, clv, int(mod))
+            key = "{}-{}-{}".format(pep_len, clv, int(mod))
             # FIXME: needs to add actual peptide embeds
             pep_dataset.filt_dict[key].append([idx, e_peps[idx], pep_dataset.pep_mass_list[idx]])
 
@@ -163,20 +178,29 @@ def run_specollate_par(rank, world_size):
     psm_vals = []
     print("Running filtered {} database search.".format("target" if rank == 0 else "decoy"))
     for key in spec_dataset.filt_dict:
-        print('Searching for key {}.'.format(key))
+        print("Searching for key {}.".format(key))
         for tol in range(len_tol_neg, len_tol_pos + 1):
-            key_len, key_clv, key_mod = int(key.split('-')[0]), int(key.split('-')[1]), int(key.split('-')[2])
-            pep_key = '{}-{}-{}'.format(key_len + tol, key_clv, key_mod)
+            key_len, key_clv, key_mod = (
+                int(key.split("-")[0]),
+                int(key.split("-")[1]),
+                int(key.split("-")[2]),
+            )
+            pep_key = "{}-{}-{}".format(key_len + tol, key_clv, key_mod)
             if pep_key not in pep_dataset.filt_dict:
                 print("Key {} not found in pep_dataset".format(pep_key))
                 continue
             print("Searching against key {} with {} peptides.".format(pep_key, len(pep_dataset.filt_dict[pep_key])))
             spec_subset = spec_dataset.filt_dict[key]
             search_loader = torch.utils.data.DataLoader(
-                dataset=spec_subset, num_workers=0, batch_size=search_spec_batch_size, shuffle=False)
+                dataset=spec_subset,
+                num_workers=0,
+                batch_size=search_spec_batch_size,
+                shuffle=False,
+            )
             unfiltered_start_time = time.time()
             l_spec_inds, l_pep_inds, l_psm_vals = dbsearch.filtered_parallel_search(
-                search_loader, pep_dataset.filt_dict[pep_key], rank)
+                search_loader, pep_dataset.filt_dict[pep_key], rank
+            )
             unfiltered_time += time.time() - unfiltered_start_time
 
             if not l_spec_inds:
@@ -204,18 +228,40 @@ def run_specollate_par(rank, world_size):
 
     pin_charge = config.get_config(section="search", key="charge")
     charge_cols = [f"charge-{ch+1}" for ch in range(pin_charge)]
-    cols = ["SpecId", "Label", "ScanNr", "SNAP", "ExpMass", "CalcMass", "deltCn",
-            "deltLCn"] + charge_cols + ["dM", "absdM", "enzInt", "PepLen", "Peptide", "Proteins"]
+    cols = (
+        [
+            "SpecId",
+            "Label",
+            "ScanNr",
+            "SNAP",
+            "ExpMass",
+            "CalcMass",
+            "deltCn",
+            "deltLCn",
+        ]
+        + charge_cols
+        + ["dM", "absdM", "enzInt", "PepLen", "Peptide", "Proteins"]
+    )
 
     dist.barrier()
 
     if rank == 0:
         print("Generating percolator pin files...")
     global_out = postprocess.generate_percolator_input(
-        pep_inds, psm_vals, spec_inds, pep_dataset, spec_dataset.charges, "target" if rank == 0 else "decoy")
+        pep_inds,
+        psm_vals,
+        spec_inds,
+        pep_dataset,
+        spec_dataset.charges,
+        "target" if rank == 0 else "decoy",
+    )
     df = pd.DataFrame(global_out, columns=cols)
     df.sort_values(by="SNAP", inplace=True, ascending=False)
-    df.to_csv(join(out_pin_dir, "target.pin" if rank == 0 else "decoy.pin"), sep="\t", index=False)
+    df.to_csv(
+        join(out_pin_dir, "target.pin" if rank == 0 else "decoy.pin"),
+        sep="\t",
+        index=False,
+    )
 
     if rank == 0:
         print("Wrote percolator files: ")
@@ -224,13 +270,13 @@ def run_specollate_par(rank, world_size):
 
 
 def setup(rank, world_size):
-    os.environ['MASTER_ADDR'] = 'localhost'
-    os.environ['MASTER_PORT'] = str(config.get_config(key="master_port", section="input"))
+    os.environ["MASTER_ADDR"] = "localhost"
+    os.environ["MASTER_PORT"] = str(config.get_config(key="master_port", section="input"))
     torch.cuda.set_device(rank)
-    dist.init_process_group(backend='nccl', world_size=world_size, rank=rank)
+    dist.init_process_group(backend="nccl", world_size=world_size, rank=rank)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     parser = argparse.ArgumentParser()
 
     # Adding optional argument
@@ -242,7 +288,7 @@ if __name__ == '__main__':
 
     if input_params.config:
         tqdm.write("config: %s" % input_params.path)
-    config.PARAM_PATH = input_params.config if input_params.config else join((dirname(__file__)), "config.ini")
+    config.param_path = input_params.config if input_params.config else join((dirname(__file__)), "config.ini")
 
     num_gpus = torch.cuda.device_count()
     print("Num GPUs: {}".format(num_gpus))

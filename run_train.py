@@ -1,28 +1,20 @@
 import argparse
 import os
 import pickle
-import random as rand
 import re
-import shutil
 import timeit
 from os.path import join
 
-import numpy as np
 import torch
 import torch.distributed as dist
 import torch.multiprocessing as mp
 import torch.nn as nn
 import torch.optim as optim
-from sklearn.model_selection import train_test_split
-from torch._C import dtype
-from torch.nn.functional import dropout
-from torch.utils.data import BatchSampler
 from torch.utils.data.sampler import WeightedRandomSampler
-import wandb
 
+import wandb
 from src.atlesconfig import config, wandbsetup
-from src.atlestrain import dataset, model, sampler, trainmodel
-from src.atlesutils import simulatespectra as sim
+from src.atlestrain import dataset, model, trainmodel
 
 torch.manual_seed(1)
 
@@ -37,36 +29,38 @@ def run_par(rank, world_size):
     model_name = "nist-massive-deepnovo-mass-ch"  # first k is spec size second is batch size
     print("Training {}.".format(model_name))
     wandb.init(project="deepatles", entity="pcds")
-    wandb.run.name = "{}-{}-{}".format(model_name, os.environ['SLURM_JOB_ID'], wandb.run.id)
+    wandb.run.name = "{}-{}-{}".format(model_name, os.environ["SLURM_JOB_ID"], wandb.run.id)
     wandbsetup.set_wandb_config(wandb)
 
     setup(rank, world_size)
 
     batch_size = config.get_config(section="ml", key="batch_size")
-    prep_dir = config.get_config(section='input', key='prep_dir')
+    prep_dir = config.get_config(section="input", key="prep_dir")
 
-    train_dataset = dataset.SpectraDataset(join(prep_dir, 'train_specs.pkl'))
-    val_dataset = dataset.SpectraDataset(join(prep_dir, 'val_specs.pkl'))
+    train_dataset = dataset.SpectraDataset(join(prep_dir, "train_specs.pkl"))
+    val_dataset = dataset.SpectraDataset(join(prep_dir, "val_specs.pkl"))
 
     weights_all = train_dataset.class_weights_all
     weighted_sampler = WeightedRandomSampler(weights=weights_all, num_samples=len(weights_all), replacement=True)
     train_loader = torch.utils.data.DataLoader(
-        dataset=train_dataset, num_workers=0, collate_fn=psm_collate,
-        batch_size=batch_size, sampler=weighted_sampler,
+        dataset=train_dataset,
+        num_workers=0,
+        collate_fn=psm_collate,
+        batch_size=batch_size,
+        sampler=weighted_sampler,
     )
 
     val_loader = torch.utils.data.DataLoader(
-        dataset=val_dataset, num_workers=0, collate_fn=psm_collate,
-        batch_size=batch_size, shuffle=False
+        dataset=val_dataset, num_workers=0, collate_fn=psm_collate, batch_size=batch_size, shuffle=False
     )
 
-    lr = config.get_config(section='ml', key='lr')
-    num_epochs = config.get_config(section='ml', key='epochs')
-    weight_decay = config.get_config(section='ml', key='weight_decay')
-    embedding_dim = config.get_config(section='ml', key='embedding_dim')
-    encoder_layers = config.get_config(section='ml', key='encoder_layers')
-    num_heads = config.get_config(section='ml', key='num_heads')
-    dropout = config.get_config(section='ml', key='dropout')
+    lr = config.get_config(section="ml", key="lr")
+    num_epochs = config.get_config(section="ml", key="epochs")
+    weight_decay = config.get_config(section="ml", key="weight_decay")
+    embedding_dim = config.get_config(section="ml", key="embedding_dim")
+    encoder_layers = config.get_config(section="ml", key="encoder_layers")
+    num_heads = config.get_config(section="ml", key="num_heads")
+    dropout = config.get_config(section="ml", key="dropout")
 
     if rank == 0:
         print("Batch Size: {}".format(batch_size))
@@ -109,17 +103,22 @@ def run_par(rank, world_size):
         dist.barrier()
 
         if l_epoch % 1 == 0 and rank == 0:
-            torch.save({
-                'epoch': l_epoch,
-                'model_state_dict': model_.state_dict(),
-                'optimizer_state_dict': optimizer.state_dict(),
-                'loss': loss,
-            }, "atles-out/" + os.environ['SLURM_JOB_ID'] + "/models/{}-{}.pt".format(wandb.run.name, l_epoch))
+            torch.save(
+                {
+                    "epoch": l_epoch,
+                    "model_state_dict": model_.state_dict(),
+                    "optimizer_state_dict": optimizer.state_dict(),
+                    "loss": loss,
+                },
+                "atles-out/" + os.environ["SLURM_JOB_ID"] + "/models/{}-{}.pt".format(wandb.run.name, l_epoch),
+            )
             # remove the model two steps before.
             if os.path.exists(
-                    "atles-out/" + os.environ['SLURM_JOB_ID'] + "/models/{}-{}.pt".format(wandb.run.name, l_epoch - 2)):
+                "atles-out/" + os.environ["SLURM_JOB_ID"] + "/models/{}-{}.pt".format(wandb.run.name, l_epoch - 2)
+            ):
                 os.remove(
-                    "atles-out/" + os.environ['SLURM_JOB_ID'] + "/models/{}-{}.pt".format(wandb.run.name, l_epoch - 2))
+                    "atles-out/" + os.environ["SLURM_JOB_ID"] + "/models/{}-{}.pt".format(wandb.run.name, l_epoch - 2)
+                )
             # model_name = "single_mod-{}-{}.pt".format(epoch, lr)
             # print(wandb.run.dir)
             # torch.save(model_.state_dict(), join("./models/hcd/", model_name))
@@ -129,10 +128,10 @@ def run_par(rank, world_size):
 
 
 def setup(rank, world_size):
-    os.environ['MASTER_ADDR'] = 'localhost'
-    os.environ['MASTER_PORT'] = str(config.get_config(section="input", key="master_port"))
+    os.environ["MASTER_ADDR"] = "localhost"
+    os.environ["MASTER_PORT"] = str(config.get_config(section="input", key="master_port"))
     torch.cuda.set_device(rank)
-    dist.init_process_group(backend='nccl', world_size=world_size, rank=rank)
+    dist.init_process_group(backend="nccl", world_size=world_size, rank=rank)
     # dist.init_process_group(backend='nccl', world_size=world_size, rank=rank)
 
 
@@ -153,8 +152,7 @@ def apply_filter(filt, file_name):
         print(file_name)
         print(file_parts)
 
-    if ((filt["charge"] == 0 or charge <= filt["charge"])  # change this back to <=
-            and (mods <= filt["mods"])):
+    if (filt["charge"] == 0 or charge <= filt["charge"]) and (mods <= filt["mods"]):  # change this back to <=
         return True
 
     return False
@@ -169,6 +167,7 @@ def psm_collate(batch):
     mods = torch.LongTensor([item[3] for item in batch])
     miss_cleavs = torch.LongTensor([item[4] for item in batch])
     return [specs, char_mass, lens, mods, miss_cleavs]
+
 
 # drop_prob=0.5
 # print(vocab_size)
@@ -217,17 +216,26 @@ def read_split_listings(l_in_tensor_dir):
     return out_train_peps, out_train_specs, out_train_masses, out_test_peps, out_test_specs, out_test_masses
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
 
     # Initialize parser
     parser = argparse.ArgumentParser()
 
     # Adding optional argument
-    parser.add_argument("-j", "--job-id", help="No arguments should be passed. \
-        Instead use the shell script provided with the code.")
+    parser.add_argument(
+        "-j",
+        "--job-id",
+        help="No arguments should be passed. \
+        Instead use the shell script provided with the code.",
+    )
     parser.add_argument("-p", "--path", help="Path to the config file.")
-    parser.add_argument("-s", "--server-name", help="Which server the code is running on. \
-        Options: raptor, comet. Default: comet", default="comet")
+    parser.add_argument(
+        "-s",
+        "--server-name",
+        help="Which server the code is running on. \
+        Options: raptor, comet. Default: comet",
+        default="comet",
+    )
 
     # Read arguments from command line
     args = parser.parse_args()
@@ -240,8 +248,8 @@ if __name__ == '__main__':
         print("job_id: %s" % args.path)
         scratch = args.path
 
-    mp.set_start_method('forkserver')
-    config.PARAM_PATH = join((os.path.dirname(__file__)), "config.ini")
+    mp.set_start_method("forkserver")
+    config.param_path = join((os.path.dirname(__file__)), "config.ini")
 
     do_learn = True
     save_frequency = 2

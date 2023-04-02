@@ -37,34 +37,33 @@ test_accuracy = []
 def run_par(rank, world_size):
     model_name = "deepatles"  # first k is spec size second is batch size
     print("Validating {}.".format(model_name))
-    
+
     wandb.init(mode="disabled")
     # wandb.run.name = "{}-{}-{}".format(model_name, os.environ['SLURM_JOB_ID'], wandb.run.id)
-    wandb.run.name = "{}-{}-{}".format(model_name, '1234', wandb.run.id)
+    wandb.run.name = "{}-{}-{}".format(model_name, "1234", wandb.run.id)
     wandbsetup.set_wandb_config(wandb)
 
     main.setup(rank, world_size)
 
     batch_size = config.get_config(section="ml", key="batch_size")
-    test_dir = config.get_config(section='input', key='prep_dir')
+    test_dir = config.get_config(section="input", key="prep_dir")
 
-    val_dataset = dataset.SpectraDataset(join(test_dir, 'test_specs.pkl'))
+    val_dataset = dataset.SpectraDataset(join(test_dir, "test_specs.pkl"))
 
     weights_all = val_dataset.class_weights_all
     weighted_sampler = WeightedRandomSampler(weights=weights_all, num_samples=len(weights_all), replacement=True)
 
     val_loader = torch.utils.data.DataLoader(
-        dataset=val_dataset, num_workers=0, collate_fn=main.psm_collate,
-        batch_size=batch_size, shuffle=False
+        dataset=val_dataset, num_workers=0, collate_fn=main.psm_collate, batch_size=batch_size, shuffle=False
     )
 
-    lr = config.get_config(section='ml', key='lr')
-    num_epochs = config.get_config(section='ml', key='epochs')
-    weight_decay = config.get_config(section='ml', key='weight_decay')
-    embedding_dim = config.get_config(section='ml', key='embedding_dim')
-    encoder_layers = config.get_config(section='ml', key='encoder_layers')
-    num_heads = config.get_config(section='ml', key='num_heads')
-    dropout = config.get_config(section='ml', key='dropout')
+    lr = config.get_config(section="ml", key="lr")
+    num_epochs = config.get_config(section="ml", key="epochs")
+    weight_decay = config.get_config(section="ml", key="weight_decay")
+    embedding_dim = config.get_config(section="ml", key="embedding_dim")
+    encoder_layers = config.get_config(section="ml", key="encoder_layers")
+    num_heads = config.get_config(section="ml", key="num_heads")
+    dropout = config.get_config(section="ml", key="dropout")
 
     if rank == 0:
         print("Batch Size: {}".format(batch_size))
@@ -89,10 +88,11 @@ def run_par(rank, world_size):
     model_.load_state_dict(torch.load(model_path)["model_state_dict"])
 
     start_time = timeit.default_timer()
-    
-    _, pred_lens, labl_lens, pred_cleavs, labl_cleavs, pred_mods, labl_mods = \
-        trainmodel.test(model_, rank, val_loader, mse_loss, ce_loss, 0)
-    
+
+    _, pred_lens, labl_lens, pred_cleavs, labl_cleavs, pred_mods, labl_mods = trainmodel.test(
+        model_, rank, val_loader, mse_loss, ce_loss, 0
+    )
+
     pred_lens, labl_lens = torch.round(pred_lens), torch.round(labl_lens)
     pred_cleavs, labl_cleavs = multi_class(pred_cleavs, labl_cleavs)
     pred_mods, labl_mods = multi_class(pred_mods, labl_mods)
@@ -127,21 +127,30 @@ def round_lens(y_pred, y_test, err=0):
     return torch.round(y_pred), torch.round(y_test)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
 
     # Initialize parser
     parser = argparse.ArgumentParser()
-    
+
     # Adding optional argument
-    parser.add_argument("-j", "--job-id", help="No arguments should be passed. \
-        Instead use the shell script provided with the code.")
+    parser.add_argument(
+        "-j",
+        "--job-id",
+        help="No arguments should be passed. \
+        Instead use the shell script provided with the code.",
+    )
     parser.add_argument("-p", "--path", help="Path to the config file.")
-    parser.add_argument("-s", "--server-name", help="Which server the code is running on. \
-        Options: raptor, comet. Default: comet", default="comet")
-    
+    parser.add_argument(
+        "-s",
+        "--server-name",
+        help="Which server the code is running on. \
+        Options: raptor, comet. Default: comet",
+        default="comet",
+    )
+
     # Read arguments from command line
     args = parser.parse_args()
-    
+
     if args.job_id:
         print("job_id: %s" % args.job_id)
         job_id = args.job_id
@@ -150,14 +159,12 @@ if __name__ == '__main__':
         print("job_id: %s" % args.path)
         scratch = args.path
 
-    
+    mp.set_start_method("forkserver")
+    config.param_path = join((os.path.dirname(__file__)), "config.ini")
 
-    mp.set_start_method('forkserver')
-    config.PARAM_PATH = join((os.path.dirname(__file__)), "config.ini")
-    
     do_learn = True
     save_frequency = 2
-    
+
     # torch.manual_seed(0)
     # torch.cuda.manual_seed(0)
 

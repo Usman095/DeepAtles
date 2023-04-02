@@ -26,12 +26,14 @@ core.*
 *.png
 /models/hcd
 *.tar.gz
-out
+out*
 /models
 out_*
 out-*
 percolator-*
 index
+configs/
+all-filters.sh
 
 # Created by .ignore support plugin (hsz.mobi)
 ### Python template

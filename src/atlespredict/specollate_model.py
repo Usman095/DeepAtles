@@ -4,13 +4,14 @@ import torch.nn.functional as F
 
 from src.atlesconfig import config
 
-#adding useless comment
+
+# adding useless comment
 class Net(nn.Module):
     def __init__(self, vocab_size, output_size=512, embedding_dim=512, hidden_lstm_dim=1024, lstm_layers=2):
         super(Net, self).__init__()
-        self.spec_size = config.get_config(section='input', key='spec_size')
+        self.spec_size = config.get_config(section="input", key="spec_size")
         self.spec_size = 80000
-        self.seq_len = config.get_config(section='ml', key='pep_seq_len')
+        self.seq_len = config.get_config(section="ml", key="pep_seq_len")
         self.output_size = output_size
         self.lstm_layers = lstm_layers
         self.hidden_lstm_dim = hidden_lstm_dim
@@ -22,7 +23,7 @@ class Net(nn.Module):
         # aux_stds = np.load(join(dir_path, "aux_stds.npy"))
         # self.aux_means = torch.from_numpy(aux_means).float().to(0)
         # self.aux_stds = torch.from_numpy(aux_stds).float().to(0)
-        
+
         ################### Spectra branch ###################
         # self.conv1_1    = nn.Conv1d(1, 32, 3, stride=1, padding=1)
         # self.maxpool1_1 = nn.MaxPool1d(50, stride=50)
@@ -37,12 +38,17 @@ class Net(nn.Module):
 
         ################### Peptide branch ###################
         self.embedding = nn.Embedding(vocab_size, embedding_dim)
-        self.lstm = nn.LSTM(embedding_dim, self.hidden_lstm_dim, self.lstm_layers,
-                            # dropout=0.5,
-                            batch_first=True, bidirectional=True)
+        self.lstm = nn.LSTM(
+            embedding_dim,
+            self.hidden_lstm_dim,
+            self.lstm_layers,
+            # dropout=0.5,
+            batch_first=True,
+            bidirectional=True,
+        )
 
         # self.linear2 = nn.Linear(111, 64)
-        self.linear2_1 = nn.Linear(self.hidden_lstm_dim * 2, 512) # 2048, 1024
+        self.linear2_1 = nn.Linear(self.hidden_lstm_dim * 2, 512)  # 2048, 1024
         self.linear2_2 = nn.Linear(512, 256)
         # NOTE: should the two layers below be just one layer.
         # self.linear_spec_mass1 = nn.Linear(1024, 256)
@@ -74,8 +80,8 @@ class Net(nn.Module):
         self.dropout_pep_mass2 = nn.Dropout(do)
         self.dropout_pep_mass3 = nn.Dropout(do)
         print("dropout: {}".format(do))
-        #self.dropout3 = nn.Dropout(0.3)
-        
+        # self.dropout3 = nn.Dropout(0.3)
+
     def forward(self, data, data_type=None):
         assert not data_type or data_type == "specs" or data_type == "peps"
         res = []
@@ -101,11 +107,11 @@ class Net(nn.Module):
             out_spec = F.relu(self.linear1_2(out))
             # out_spec = out_spec * mc_out
             out_spec = F.normalize(out_spec)
-            
+
             # out_ch = self.dropout_charge1(out)
             # out_ch = self.linear_charge1(out_ch)
             # out_ch = F.relu(out_ch)
-            
+
             # out_mass = self.dropout_spec_mass1(out)
             # out_mass = self.linear_spec_mass1(out_mass)
             # out_mass = F.relu(out_mass)
@@ -134,7 +140,7 @@ class Net(nn.Module):
 
                 out = F.relu((self.linear2_1(out)))
                 out = self.dropout2_2(out)
-                
+
                 # m_out = F.relu(self.linear2(mass.view(-1, 27)))
                 # m_out = self.dropout2(m_out)
                 # out = torch.cat((m_out, out), axis=1)
@@ -145,7 +151,7 @@ class Net(nn.Module):
 
                 out_pep = F.relu(self.linear2_2(out))
                 out_pep = F.normalize(out_pep)
-                
+
                 # out_mass = self.dropout_pep_mass1(out)
                 # out_mass = self.linear_pep_mass1(out_mass)
                 # out_mass = F.relu(out_mass)
@@ -157,22 +163,23 @@ class Net(nn.Module):
                 res.append(out_pep)
                 # res.append(out_mass)
         return res
-    
+
     def init_hidden(self, batch_size):
         weight = next(self.parameters()).data
-        hidden = (weight.new(self.lstm_layers * 2, batch_size, self.hidden_lstm_dim).zero_(),
-                      weight.new(self.lstm_layers * 2, batch_size, self.hidden_lstm_dim).zero_())
+        hidden = (
+            weight.new(self.lstm_layers * 2, batch_size, self.hidden_lstm_dim).zero_(),
+            weight.new(self.lstm_layers * 2, batch_size, self.hidden_lstm_dim).zero_(),
+        )
         return hidden
 
     def one_hot_tensor(self, peps):
         batch_size = len(peps)
-        src = torch.zeros((batch_size, self.seq_len), dtype=torch.float16, device='cuda')
+        src = torch.zeros((batch_size, self.seq_len), dtype=torch.float16, device="cuda")
         src[peps > 0] = 1.0
-        one_hots = torch.zeros((batch_size, self.seq_len, self.vocab_size), dtype=torch.float16, 
-                                device='cuda')
+        one_hots = torch.zeros((batch_size, self.seq_len, self.vocab_size), dtype=torch.float16, device="cuda")
         one_hots.scatter_(2, peps.view(batch_size, self.seq_len, 1), src.view(batch_size, self.seq_len, 1))
         one_hots.requires_grad = True
         return one_hots
-    
+
     def name(self):
         return "Net"

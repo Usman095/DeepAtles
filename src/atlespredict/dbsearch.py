@@ -1,19 +1,14 @@
+import bisect
 import sys
-import gc
+
 import numpy as np
 import torch
-import progressbar
 import torch.nn.functional as F
 from tqdm import tqdm
-# from memory_profiler import profile
-import bisect
 
 from src.atlesconfig import config
 from src.atlestrain import process
-
-
-def ppm(val, ppm_val):
-    return (ppm_val / 1000000.0) * val
+from src.atlesutils import utils
 
 
 def spec_collate(batch):
@@ -41,11 +36,11 @@ def get_search_mask(spec_masses, pep_masses, tol):
     for row_id, spec_mass in enumerate(spec_masses):
         # min_mass = max(spec_mass - l_tol, 0.0)
         # max_mass = spec_mass + l_tol
-        min_mass = max(spec_mass - ppm(spec_mass, l_tol), 0.0)
-        max_mass = spec_mass + ppm(spec_mass, l_tol)
-        while (pep_min < len(pep_masses) and min_mass > pep_masses[pep_min]):
+        min_mass = max(spec_mass - utils.ppm(spec_mass, l_tol), 0.0)
+        max_mass = spec_mass + utils.ppm(spec_mass, l_tol)
+        while pep_min < len(pep_masses) and min_mass > pep_masses[pep_min]:
             pep_min += 1
-        while (pep_max < len(pep_masses) and max_mass > pep_masses[pep_max]):
+        while pep_max < len(pep_masses) and max_mass > pep_masses[pep_max]:
             pep_max += 1
         # pep_min = max(pep_min - 1, 0)
         # pep_max = min(pep_max + 1, len(pep_masses) - 1)
@@ -67,7 +62,7 @@ def runAtlesModel(loader, s_model, device):
         cleavs_out = torch.Tensor().cpu()
         mods_out = torch.Tensor().cpu()
         pbar = tqdm(loader, file=sys.stdout)
-        pbar.set_description('Running Model...')
+        pbar.set_description("Running Model...")
         # with progressbar.ProgressBar(max_value=len(loader)) as bar:
         for batch in pbar:
             batch[0], batch[1] = batch[0].to(device), batch[1].to(device)
@@ -85,12 +80,9 @@ def runAtlesModel(loader, s_model, device):
 
 def runSpeCollateModel(loader, s_model, in_type, device):
     with torch.no_grad():
-        accurate_labels = 0
-        all_labels = 0
-        loss = 0
         out_out = torch.Tensor().cpu()
         pbar = tqdm(loader, file=sys.stdout)
-        pbar.set_description('Running Model...')
+        pbar.set_description("Running Model...")
         # with progressbar.ProgressBar(max_value=len(loader)) as bar:
         for batch in pbar:
             batch[0], batch[1] = batch[0].to(device), batch[1].to(device)
@@ -124,7 +116,7 @@ def search(search_loader, datasets, embeddings, device):
     precursor_tolerance = config.get_config(key="precursor_tolerance", section="search")
 
     pbar = tqdm(search_loader, file=sys.stdout)
-    pbar.set_description('Running Database Search...')
+    pbar.set_description("Running Database Search...")
     # with progressbar.ProgressBar(max_value=len(search_loader)) as bar:
     for idx, spec_batch in enumerate(pbar):
         l_tol = precursor_tolerance
@@ -136,19 +128,15 @@ def search(search_loader, datasets, embeddings, device):
         max_mass = spec_masses[-1] + l_tol
         pep_min = pep_max = 0
 
-        while (pep_min < len(pep_dataset.pep_mass_list) and
-                min_mass - pep_dataset.pep_mass_list[pep_min] > 0.01):
+        while pep_min < len(pep_dataset.pep_mass_list) and min_mass - pep_dataset.pep_mass_list[pep_min] > 0.01:
             pep_min += 1
-        while (pep_max < len(pep_dataset.pep_mass_list) and
-                max_mass - pep_dataset.pep_mass_list[pep_max] >= 0.01):
+        while pep_max < len(pep_dataset.pep_mass_list) and max_mass - pep_dataset.pep_mass_list[pep_max] >= 0.01:
             pep_max += 1
 
         dec_min = dec_max = 0
-        while (dec_min < len(dec_dataset.pep_mass_list) and
-                min_mass - dec_dataset.pep_mass_list[dec_min] > 0.01):
+        while dec_min < len(dec_dataset.pep_mass_list) and min_mass - dec_dataset.pep_mass_list[dec_min] > 0.01:
             dec_min += 1
-        while (dec_max < len(dec_dataset.pep_mass_list) and
-                max_mass - dec_dataset.pep_mass_list[dec_max] >= 0.01):
+        while dec_max < len(dec_dataset.pep_mass_list) and max_mass - dec_dataset.pep_mass_list[dec_max] >= 0.01:
             dec_max += 1
 
         pep_batch = e_peps[pep_min:pep_max]
@@ -160,8 +148,7 @@ def search(search_loader, datasets, embeddings, device):
         # print("pep batch len: {}".format(len(pep_batch)))
         l_pep_batch_size = 16384
         # l_pep_batch_size = 32768
-        pep_loader = torch.utils.data.DataLoader(
-            dataset=pep_batch, batch_size=l_pep_batch_size)
+        pep_loader = torch.utils.data.DataLoader(dataset=pep_batch, batch_size=l_pep_batch_size)
         l_pep_dist = []
         for pep_idx, l_pep_batch in enumerate(pep_loader):
             l_pep_batch = l_pep_batch.to(device)
@@ -177,12 +164,12 @@ def search(search_loader, datasets, embeddings, device):
         pep_sort = torch.cat(l_pep_dist, 1)
         pep_lcn = np.ma.masked_array(pep_sort, mask=pep_sort == 0).min(1).data
         pep_sort = pep_sort.sort(descending=True)
-        pep_sort_inds.append(pep_sort.indices[:, :keep_psms + 1] + pep_min)  # offset for the global array
-        pep_sort_vals.append(torch.cat((pep_sort.values[:, :keep_psms + 1],
-                                        torch.from_numpy(pep_lcn).unsqueeze(1)), 1))
+        pep_sort_inds.append(pep_sort.indices[:, : keep_psms + 1] + pep_min)  # offset for the global array
+        pep_sort_vals.append(
+            torch.cat((pep_sort.values[:, : keep_psms + 1], torch.from_numpy(pep_lcn).unsqueeze(1)), 1)
+        )
 
-        dec_loader = torch.utils.data.DataLoader(
-            dataset=dec_batch, batch_size=l_pep_batch_size)
+        dec_loader = torch.utils.data.DataLoader(dataset=dec_batch, batch_size=l_pep_batch_size)
         l_dec_dist = []
         for dec_idx, l_dec_batch in enumerate(dec_loader):
             l_dec_batch = l_dec_batch.to(device)
@@ -198,9 +185,10 @@ def search(search_loader, datasets, embeddings, device):
         dec_sort = torch.cat(l_dec_dist, 1)
         dec_lcn = np.ma.masked_array(dec_sort, mask=dec_sort == 0).min(1).data
         dec_sort = dec_sort.sort(descending=True)
-        dec_sort_inds.append(dec_sort.indices[:, :keep_psms + 1] + dec_min)  # offset for the global array
-        dec_sort_vals.append(torch.cat((dec_sort.values[:, :keep_psms + 1],
-                                        torch.from_numpy(dec_lcn).unsqueeze(1)), 1))
+        dec_sort_inds.append(dec_sort.indices[:, : keep_psms + 1] + dec_min)  # offset for the global array
+        dec_sort_vals.append(
+            torch.cat((dec_sort.values[:, : keep_psms + 1], torch.from_numpy(dec_lcn).unsqueeze(1)), 1)
+        )
         # bar.update(idx)
 
     pep_inds = torch.cat(pep_sort_inds, 0)
@@ -227,7 +215,7 @@ def parallel_search(search_loader, datasets, embeddings, rank):
     precursor_tolerance = config.get_config(key="precursor_tolerance", section="search")
 
     pbar = tqdm(search_loader, file=sys.stdout)
-    pbar.set_description('Running Database Search...')
+    pbar.set_description("Running Database Search...")
     # with progressbar.ProgressBar(max_value=len(search_loader)) as bar:
     for idx, spec_batch in enumerate(pbar):
         l_tol = precursor_tolerance
@@ -237,16 +225,14 @@ def parallel_search(search_loader, datasets, embeddings, rank):
         spec_masses = spec_dataset.spec_mass_list[st:en]  # en can be out-of-bound. python will take care of it
         # min_mass = max(spec_masses[0] - l_tol, 0)
         # max_mass = spec_masses[-1] + l_tol
-        min_mass = max(spec_masses[0] - ppm(spec_masses[0], l_tol), 0)
-        max_mass = spec_masses[-1] + ppm(spec_masses[-1], l_tol)
+        min_mass = max(spec_masses[0] - utils.ppm(spec_masses[0], l_tol), 0)
+        max_mass = spec_masses[-1] + utils.ppm(spec_masses[-1], l_tol)
 
         if rank == 0:
             pep_min = pep_max = 0
-            while (pep_min < len(pep_dataset.pep_mass_list) and
-                    min_mass - pep_dataset.pep_mass_list[pep_min] > 0.001):
+            while pep_min < len(pep_dataset.pep_mass_list) and min_mass - pep_dataset.pep_mass_list[pep_min] > 0.001:
                 pep_min += 1
-            while (pep_max < len(pep_dataset.pep_mass_list) and
-                    max_mass - pep_dataset.pep_mass_list[pep_max] >= 0.001):
+            while pep_max < len(pep_dataset.pep_mass_list) and max_mass - pep_dataset.pep_mass_list[pep_max] >= 0.001:
                 pep_max += 1
 
             pep_batch = e_peps[pep_min:pep_max]
@@ -254,11 +240,9 @@ def parallel_search(search_loader, datasets, embeddings, rank):
 
         if rank == 1:
             dec_min = dec_max = 0
-            while (dec_min < len(dec_dataset.pep_mass_list) and
-                    min_mass - dec_dataset.pep_mass_list[dec_min] > 0.001):
+            while dec_min < len(dec_dataset.pep_mass_list) and min_mass - dec_dataset.pep_mass_list[dec_min] > 0.001:
                 dec_min += 1
-            while (dec_max < len(dec_dataset.pep_mass_list) and
-                    max_mass - dec_dataset.pep_mass_list[dec_max] >= 0.001):
+            while dec_max < len(dec_dataset.pep_mass_list) and max_mass - dec_dataset.pep_mass_list[dec_max] >= 0.001:
                 dec_max += 1
 
             dec_batch = e_decs[dec_min:dec_max]
@@ -269,14 +253,10 @@ def parallel_search(search_loader, datasets, embeddings, rank):
         l_pep_batch_size = 16384
         # l_pep_batch_size = 32768
         if rank == 0:
-            pep_loader = torch.utils.data.DataLoader(
-                dataset=pep_batch, batch_size=l_pep_batch_size)
+            pep_loader = torch.utils.data.DataLoader(dataset=pep_batch, batch_size=l_pep_batch_size)
             l_pep_dist = []
-            for pep_idx, l_pep_batch in enumerate(pep_loader):
+            for l_pep_batch in pep_loader:
                 l_pep_batch = l_pep_batch.to(rank)
-                l_st = pep_idx * l_pep_batch_size
-                l_en = l_st + l_pep_batch_size
-                l_pep_masses = pep_masses[l_st:l_en]
                 # spec_pep_mask = get_search_mask(spec_masses, l_pep_masses, precursor_tolerance).to(rank)
                 # spec_pep_mask[spec_pep_mask == 0] = float("inf")
                 spec_pep_dist = 1.0 / process.pairwise_distances(spec_batch, l_pep_batch).to("cpu")
@@ -284,23 +264,20 @@ def parallel_search(search_loader, datasets, embeddings, rank):
 
             pep_sort = torch.cat(l_pep_dist, 1)
             spec_pep_mask = get_search_mask(spec_masses, pep_masses, precursor_tolerance)
-            pep_sort = (pep_sort * spec_pep_mask)
+            pep_sort = pep_sort * spec_pep_mask
             pep_sort = torch.cat((pep_sort, torch.zeros(len(spec_batch), keep_psms + 1)), axis=1)
             pep_lcn = np.ma.masked_array(pep_sort, mask=pep_sort == 0).min(1).data
             pep_sort = pep_sort.sort(descending=True)
-            sort_inds.append(pep_sort.indices[:, :keep_psms + 1] + pep_min)  # offset for the global array
-            sort_vals.append(torch.cat((pep_sort.values[:, :keep_psms + 1],
-                                        torch.from_numpy(pep_lcn).unsqueeze(1)), 1))
+            sort_inds.append(pep_sort.indices[:, : keep_psms + 1] + pep_min)  # offset for the global array
+            sort_vals.append(
+                torch.cat((pep_sort.values[:, : keep_psms + 1], torch.from_numpy(pep_lcn).unsqueeze(1)), 1)
+            )
 
         if rank == 1:
-            dec_loader = torch.utils.data.DataLoader(
-                dataset=dec_batch, batch_size=l_pep_batch_size)
+            dec_loader = torch.utils.data.DataLoader(dataset=dec_batch, batch_size=l_pep_batch_size)
             l_dec_dist = []
-            for dec_idx, l_dec_batch in enumerate(dec_loader):
+            for l_dec_batch in dec_loader:
                 l_dec_batch = l_dec_batch.to(rank)
-                l_st = dec_idx * l_pep_batch_size
-                l_en = l_st + l_pep_batch_size
-                l_dec_masses = dec_masses[l_st:l_en]
                 # spec_dec_mask = get_search_mask(spec_masses, l_dec_masses, precursor_tolerance).to(rank)
                 # spec_dec_mask[spec_dec_mask == 0] = float("inf")
                 spec_dec_dist = 1.0 / process.pairwise_distances(spec_batch, l_dec_batch).to("cpu")
@@ -308,13 +285,14 @@ def parallel_search(search_loader, datasets, embeddings, rank):
 
             dec_sort = torch.cat(l_dec_dist, 1)
             spec_dec_mask = get_search_mask(spec_masses, dec_masses, precursor_tolerance)
-            dec_sort = (dec_sort * spec_dec_mask)
+            dec_sort = dec_sort * spec_dec_mask
             dec_sort = torch.cat((dec_sort, torch.zeros(len(spec_batch), keep_psms + 1)), axis=1)
             dec_lcn = np.ma.masked_array(dec_sort, mask=dec_sort == 0).min(1).data
             dec_sort = dec_sort.sort(descending=True)
-            sort_inds.append(dec_sort.indices[:, :keep_psms + 1] + dec_min)  # offset for the global array
-            sort_vals.append(torch.cat((dec_sort.values[:, :keep_psms + 1],
-                                        torch.from_numpy(dec_lcn).unsqueeze(1)), 1))
+            sort_inds.append(dec_sort.indices[:, : keep_psms + 1] + dec_min)  # offset for the global array
+            sort_vals.append(
+                torch.cat((dec_sort.values[:, : keep_psms + 1], torch.from_numpy(dec_lcn).unsqueeze(1)), 1)
+            )
         # bar.update(idx)
 
     if rank == 0:
@@ -338,13 +316,13 @@ def filtered_parallel_search(search_loader, peps, rank):
     tol_type = config.get_config(key="precursor_tolerance_type", section="search")
 
     pbar = tqdm(search_loader, file=sys.stdout)
-    pbar.set_description('Running Database Search...')
+    pbar.set_description("Running Database Search...")
     # with progressbar.ProgressBar(max_value=len(search_loader)) as bar:
-    for idx, [spec_idx, spec_batch, spec_masses] in enumerate(pbar):
+    for spec_idx, spec_batch, spec_masses in pbar:
         l_tol = precursor_tolerance
         if tol_type == "ppm":
-            min_mass = max(spec_masses[0] - ppm(spec_masses[0], l_tol), 0)
-            max_mass = spec_masses[-1] + ppm(spec_masses[-1], l_tol)
+            min_mass = max(spec_masses[0] - utils.ppm(spec_masses[0], l_tol), 0)
+            max_mass = spec_masses[-1] + utils.ppm(spec_masses[-1], l_tol)
         else:
             min_mass = max(spec_masses[0] - l_tol, 0)
             max_mass = spec_masses[-1] + l_tol
@@ -361,8 +339,7 @@ def filtered_parallel_search(search_loader, peps, rank):
         # print("pep batch len: {}".format(len(pep_batch)))
         l_pep_batch_size = 512
         # l_pep_batch_size = 32768
-        pep_loader = torch.utils.data.DataLoader(
-            dataset=pep_batch, batch_size=l_pep_batch_size, shuffle=False)
+        pep_loader = torch.utils.data.DataLoader(dataset=pep_batch, batch_size=l_pep_batch_size, shuffle=False)
         l_pep_dist = []
         g_ids = []
         for g_idx, l_pep_batch, l_pep_masses in pep_loader:
@@ -385,7 +362,7 @@ def filtered_parallel_search(search_loader, peps, rank):
             continue
         pep_sort = torch.cat(l_pep_dist, 1)
         spec_pep_mask = get_search_mask(spec_masses, pep_masses, precursor_tolerance)
-        pep_sort = (pep_sort * spec_pep_mask)
+        pep_sort = pep_sort * spec_pep_mask
         pep_sort = torch.cat((pep_sort, torch.zeros(len(spec_batch), keep_psms + 1)), axis=1)
         pep_lcn = np.ma.masked_array(pep_sort, mask=pep_sort == 0).min(1).data
         pep_sort = torch.topk(pep_sort, k=keep_psms + 1, largest=True, sorted=True)
