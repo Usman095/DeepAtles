@@ -8,7 +8,6 @@ from dataclasses import dataclass
 from os.path import dirname, join
 from pathlib import PurePath
 
-import pandas as pd
 import torch
 import torch.distributed as dist
 import torch.multiprocessing as mp
@@ -16,8 +15,7 @@ from torch import nn
 from tqdm import tqdm
 
 from src.atlesconfig import config
-from src.atlespredict import (dbsearch, pepdataset, postprocess, specdataset,
-                              specollate_model)
+from src.atlespredict import dbsearch, pepdataset, postprocess, specdataset, specollate_model
 from src.atlesutils import utils
 
 
@@ -35,10 +33,40 @@ def setup(rank, world_size):
     dist.init_process_group(backend="nccl", world_size=world_size, rank=rank)
 
 
+def create_directories(index_path):
+    os.makedirs(index_path)
+    os.mkdir(join(index_path, "peptide_chunks"))
+    os.mkdir(join(index_path, "peptide_embeddings"))
+    os.mkdir(join(index_path, "decoy_embeddings"))
+
+
 # check if preprocessed folder exisits.
 # if not do step: 1 - 2
 # do step 3 - 4
 # Step 1
+def write_peptides_to_chunk(pep_dataset, ooc_chunk_size, chunk_path, pep_counter, min_pep_len, max_pep_len, max_clvs):
+    write_counter = 0
+    with open(chunk_path, "w") as f:
+        while write_counter < ooc_chunk_size:
+            if pep_counter >= len(pep_dataset):
+                break
+            pep = pep_dataset.pep_list[pep_counter]
+            clv = pep_dataset.missed_cleavs[pep_counter]
+            prot = pep_dataset.prot_list[pep_counter]
+            pep_counter += 1
+            pep_len = sum(map(str.isupper, pep))
+            if min_pep_len <= pep_len <= max_pep_len and 0 <= clv <= max_clvs:
+                f.write(">" + prot + "\n")
+                f.write(pep + "\n")
+                write_counter += 1
+    return pep_counter
+
+
+def save_file_names(file_names, index_path):
+    with open(join(index_path, "file_names.pkl"), "wb") as f:
+        pickle.dump(file_names, f)
+
+
 def chunkify_peptides(index_path):
     pep_dir = config.get_config(key="pep_dir", section="search")
     ooc_chunk_size = config.get_config(key="chunk_size", section="ooc")
@@ -48,13 +76,7 @@ def chunkify_peptides(index_path):
 
     pep_dataset = pepdataset.PeptideDataset(pep_dir, decoy=False)
     pep_chunks_path = join(index_path, "peptide_chunks")
-    os.makedirs(index_path)
 
-    os.mkdir(pep_chunks_path)
-    os.mkdir(join(index_path, "peptide_embeddings"))
-    os.mkdir(join(index_path, "decoy_embeddings"))
-
-    # 1 - classify peptides and write to 144 separate files.
     file_names = []
     pep_counter = chunk_counter = 0
     print("Chunkify peptides and writing to files")
@@ -68,26 +90,16 @@ def chunkify_peptides(index_path):
         file_name = "chunk-{}-{}-{}".format(chunk_counter, min_mass, max_mass)
         file_path = join(pep_chunks_path, file_name)
         file_names.append(file_name)
-        with open(file_path, "w") as f:
-            write_counter = 0
-            while write_counter < ooc_chunk_size:
-                if pep_counter >= len(pep_dataset):
-                    break
-                pep = pep_dataset.pep_list[pep_counter]
-                clv = pep_dataset.missed_cleavs[pep_counter]
-                prot = pep_dataset.prot_list[pep_counter]
-                pep_counter += 1
-                pep_len = sum(map(str.isupper, pep))
-                if min_pep_len <= pep_len <= max_pep_len and 0 <= clv <= max_clvs:
-                    f.write(">" + prot + "\n")
-                    f.write(pep + "\n")
-                    write_counter += 1
-            chunk_counter += 1
+
+        pep_counter = write_peptides_to_chunk(
+            pep_dataset, ooc_chunk_size, file_path, pep_counter, min_pep_len, max_pep_len, max_clvs
+        )
+
+        chunk_counter += 1
         if pep_counter >= len(pep_dataset):
             break
 
-    with open(join(index_path, "file_names.pkl"), "wb") as f:
-        pickle.dump(file_names, f)
+    save_file_names(file_names, index_path)
 
     return file_names
 
@@ -207,29 +219,6 @@ def chunkify_spectra(e_specs, spec_masses, file_names):
     return spec_chunk_dict
 
 
-def write_to_pin(rank, pep_inds, psm_vals, spec_inds, l_pep_dataset, spec_charges, cols, out_pin_dir):
-    os.makedirs(out_pin_dir, exist_ok=True)
-    if rank == 0:
-        print("Generating percolator pin files...")
-    global_out = postprocess.generate_percolator_input(
-        pep_inds,
-        psm_vals,
-        spec_inds,
-        l_pep_dataset,
-        spec_charges,
-        "target" if rank == 0 else "decoy",
-    )
-    df = pd.DataFrame(global_out, columns=cols)
-    df.sort_values(by="SNAP", inplace=True, ascending=False)
-    with open(join(out_pin_dir, "target.pin" if rank == 0 else "decoy.pin"), "a") as f:
-        df.to_csv(f, sep="\t", index=False, header=not f.tell())
-
-    if rank == 0:
-        print("Wrote percolator files: ")
-    # dist.barrier()
-    print("{}".format(join(out_pin_dir, "target.pin") if rank == 0 else join(out_pin_dir, "decoy.pin")))
-
-
 def search_database(rank, spec_filt_dict, spec_charges, index_path, out_pin_dir):
     search_spec_batch_size = config.get_config(key="search_spec_batch_size", section="search")
     # dist.barrier()
@@ -289,7 +278,7 @@ def search_database(rank, spec_filt_dict, spec_charges, index_path, out_pin_dir)
         print("{} PSMS: {}".format("Target" if rank == 0 else "Decoy", len(pep_inds)))
 
         # 4 - Write PSMs to pin file
-        write_to_pin(rank, pep_inds, psm_vals, spec_inds, pep_dataset, spec_charges, cols, out_pin_dir)
+        postprocess.write_to_pin(rank, pep_inds, psm_vals, spec_inds, pep_dataset, spec_charges, cols, out_pin_dir)
 
 
 def run_atles_search(rank, world_size, config_path):
@@ -308,6 +297,7 @@ def run_atles_search(rank, world_size, config_path):
         file_names = None
         if not os.path.exists(index_path):
             if rank == 0:
+                create_directories(index_path)
                 chunkify_peptides(index_path)
             dist.barrier()
             with open(join(index_path, "file_names.pkl"), "rb") as f:

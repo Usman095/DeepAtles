@@ -22,7 +22,7 @@ from src.atlespredict import (
 from src.atlestrain import model
 
 
-def run_atles(rank, world_size, spec_loader):
+def run_atles(rank, spec_loader):
     model_ = model.Net().to(rank)
     model_ = nn.parallel.DistributedDataParallel(model_, device_ids=[rank])
     # model_.load_state_dict(torch.load('atles-out/16403437/models/pt-mass-ch-16403437-1toz70vi-472.pt')['model_state_dict'])
@@ -56,8 +56,6 @@ def run_specollate_par(rank, world_size):
     # rank = config.get_config(key="rank", section="input")
     if torch.cuda.is_available():
         torch.cuda.set_device(rank)
-    mgf_dir = config.get_config(key="mgf_dir", section="search")
-    prep_dir = config.get_config(key="prep_dir", section="search")
     pep_dir = config.get_config(key="pep_dir", section="search")
     out_pin_dir = config.get_config(key="out_pin_dir", section="search")
 
@@ -71,7 +69,6 @@ def run_specollate_par(rank, world_size):
     if rank == 0:
         tqdm.write("Reading input files...")
 
-    batch_size = config.get_config(section="ml", key="batch_size")
     prep_path = config.get_config(section="search", key="prep_path")
     spec_batch_size = config.get_config(key="spec_batch_size", section="search")
     spec_dataset = specdataset.SpectraDataset(join(prep_path, "specs.pkl"))
@@ -82,7 +79,7 @@ def run_specollate_par(rank, world_size):
     )
 
     atles_start_time = time.time()
-    lens, cleavs, mods = run_atles(rank, 1, spec_loader)
+    lens, cleavs, mods = run_atles(rank, spec_loader)
     atles_end_time = time.time()
     atles_time = atles_end_time - atles_start_time
 
@@ -106,9 +103,13 @@ def run_specollate_par(rank, world_size):
     snap_model = nn.parallel.DistributedDataParallel(snap_model, device_ids=[rank])
     # snap_model.load_state_dict(torch.load('models/32-embed-2-lstm-SnapLoss2-noch-3k-1k-152.pt')['model_state_dict'])
     # below one has 26975 identified peptides.
-    # snap_model.load_state_dict(torch.load('models/512-embed-2-lstm-SnapLoss-noch-80k-nist-massive-52.pt')['model_state_dict'])
+    # snap_model.load_state_dict(
+    #     torch.load("models/512-embed-2-lstm-SnapLoss-noch-80k-nist-massive-52.pt")["model_state_dict"]
+    # )
     # below one has 27.5k peps
-    # snap_model.load_state_dict(torch.load('models/hcd/512-embed-2-lstm-SnapLoss2D-inputCharge-80k-nist-massive-116.pt')['model_state_dict'])
+    # snap_model.load_state_dict(
+    #     torch.load("models/hcd/512-embed-2-lstm-SnapLoss2D-inputCharge-80k-nist-massive-116.pt")["model_state_dict"]
+    # )
     snap_model.load_state_dict(torch.load("specollate-model/{}".format(model_name))["model_state_dict"])
     snap_model = snap_model.module
     snap_model.eval()
@@ -144,7 +145,6 @@ def run_specollate_par(rank, world_size):
             clv = int(clv) if missed_cleavages_filter else 0
             mod = int(mod) if modification_filter else 0
             key = "{}-{}-{}".format(l, clv, int(mod))
-            # FIXME: needs to add actual spectra embeddings
             spec_dataset.filt_dict[key].append([idx, e_specs[idx], spec_dataset.masses[idx]])
 
     pep_batch_size = config.get_config(key="pep_batch_size", section="search")
@@ -164,7 +164,6 @@ def run_specollate_par(rank, world_size):
             clv = int(clv) if missed_cleavages_filter else 0
             mod = int(mod) if modification_filter else 0
             key = "{}-{}-{}".format(pep_len, clv, int(mod))
-            # FIXME: needs to add actual peptide embeds
             pep_dataset.filt_dict[key].append([idx, e_peps[idx], pep_dataset.pep_mass_list[idx]])
 
     search_spec_batch_size = config.get_config(key="search_spec_batch_size", section="search")

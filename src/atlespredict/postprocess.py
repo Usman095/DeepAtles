@@ -1,3 +1,7 @@
+import os
+from os.path import join
+import pandas as pd
+
 import torch
 
 from src.atlesconfig import config
@@ -52,3 +56,26 @@ def generate_percolator_input(l_pep_inds, l_pep_vals, l_spec_inds, pd_dataset, s
                 l_global_out.append(out_row)
                 tot_count += 1
     return l_global_out
+
+
+def write_to_pin(rank, pep_inds, psm_vals, spec_inds, l_pep_dataset, spec_charges, cols, out_pin_dir):
+    os.makedirs(out_pin_dir, exist_ok=True)
+    if rank == 0:
+        print("Generating percolator pin files...")
+    global_out = generate_percolator_input(
+        pep_inds,
+        psm_vals,
+        spec_inds,
+        l_pep_dataset,
+        spec_charges,
+        "target" if rank == 0 else "decoy",
+    )
+    df = pd.DataFrame(global_out, columns=cols)
+    df.sort_values(by="SNAP", inplace=True, ascending=False)
+    with open(join(out_pin_dir, "target.pin" if rank == 0 else "decoy.pin"), "a") as f:
+        df.to_csv(f, sep="\t", index=False, header=not f.tell())
+
+    if rank == 0:
+        print("Wrote percolator files: ")
+    # dist.barrier()
+    print("{}".format(join(out_pin_dir, "target.pin") if rank == 0 else join(out_pin_dir, "decoy.pin")))

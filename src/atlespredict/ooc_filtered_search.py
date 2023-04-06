@@ -8,7 +8,6 @@ from dataclasses import dataclass
 from os.path import dirname, join
 from pathlib import PurePath
 
-import pandas as pd
 import torch
 import torch.distributed as dist
 import torch.multiprocessing as mp
@@ -241,29 +240,6 @@ def create_spectra_dict(lens, cleavs, mods, e_specs, spec_masses):
     return spec_filt_dict
 
 
-def write_to_pin(rank, pep_inds, psm_vals, spec_inds, l_pep_dataset, spec_charges, cols, out_pin_dir):
-    os.makedirs(out_pin_dir, exist_ok=True)
-    if rank == 0:
-        print("Generating percolator pin files...")
-    global_out = postprocess.generate_percolator_input(
-        pep_inds,
-        psm_vals,
-        spec_inds,
-        l_pep_dataset,
-        spec_charges,
-        "target" if rank == 0 else "decoy",
-    )
-    df = pd.DataFrame(global_out, columns=cols)
-    df.sort_values(by="SNAP", inplace=True, ascending=False)
-    with open(join(out_pin_dir, "target.pin" if rank == 0 else "decoy.pin"), "a") as f:
-        df.to_csv(f, sep="\t", index=False, header=not f.tell())
-
-    if rank == 0:
-        print("Wrote percolator files: ")
-    # dist.barrier()
-    print("{}".format(join(out_pin_dir, "target.pin") if rank == 0 else join(out_pin_dir, "decoy.pin")))
-
-
 def search_database(rank, spec_filt_dict, spec_charges, index_path, out_pin_dir):
     pep_dir = config.get_config(key="pep_dir", section="search")
     search_spec_batch_size = config.get_config(key="search_spec_batch_size", section="search")
@@ -367,7 +343,7 @@ def search_database(rank, spec_filt_dict, spec_charges, index_path, out_pin_dir)
         print("{} PSMS: {}".format("Target" if rank == 0 else "Decoy", len(pep_inds)))
 
         # 4 - Write PSMs to pin file
-        write_to_pin(rank, pep_inds, psm_vals, spec_inds, pep_info, spec_charges, cols, out_pin_dir)
+        postprocess.write_to_pin(rank, pep_inds, psm_vals, spec_inds, pep_info, spec_charges, cols, out_pin_dir)
 
 
 def run_atles_search(rank, world_size, config_path):
