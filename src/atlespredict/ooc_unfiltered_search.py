@@ -129,6 +129,7 @@ def get_snap_model(rank):
 def process_peptide_chunks(rank, snap_model, file_names, index_path):
     pep_dir = config.get_config(key="pep_dir", section="search")
     pep_batch_size = config.get_config(key="pep_batch_size", section="search")
+    embedding_type = "peptide_embeddings" if rank == 0 else "decoy_embeddings"
 
     for file_name in file_names:
         pep_chunks_path = join(index_path, "peptide_chunks")
@@ -151,23 +152,9 @@ def process_peptide_chunks(rank, snap_model, file_names, index_path):
             print("Peptides done!")
 
             # save embeddings
-            print(
-                "Saving embeddings at {}".format(
-                    join(
-                        index_path,
-                        "{}".format("peptide_embeddings" if rank == 0 else "decoy_embeddings"),
-                        file_name,
-                    )
-                )
-            )
-            torch.save(
-                e_peps,
-                join(
-                    index_path,
-                    "{}".format("peptide_embeddings" if rank == 0 else "decoy_embeddings"),
-                    file_name,
-                ),
-            )
+            embedding_path = join(index_path, embedding_type, file_name)
+            print("Saving embeddings at {}".format(embedding_path))
+            torch.save(e_peps, embedding_path)
             print("Done \n")
 
     dist.barrier()
@@ -225,23 +212,6 @@ def search_database(rank, spec_filt_dict, spec_charges, index_path, out_pin_dir)
     # Run database search for each dict item
     unfiltered_time = 0
 
-    pin_charge = config.get_config(section="search", key="charge")
-    charge_cols = [f"charge-{ch+1}" for ch in range(pin_charge)]
-    cols = (
-        [
-            "SpecId",
-            "Label",
-            "ScanNr",
-            "SNAP",
-            "ExpMass",
-            "CalcMass",
-            "deltCn",
-            "deltLCn",
-        ]
-        + charge_cols
-        + ["dM", "absdM", "enzInt", "PepLen", "Peptide", "Proteins"]
-    )
-
     cum = 0
     print("Running unfiltered {} database search.".format("target" if rank == 0 else "decoy"))
     for file_name in spec_filt_dict:
@@ -278,10 +248,11 @@ def search_database(rank, spec_filt_dict, spec_charges, index_path, out_pin_dir)
         print("{} PSMS: {}".format("Target" if rank == 0 else "Decoy", len(pep_inds)))
 
         # 4 - Write PSMs to pin file
-        postprocess.write_to_pin(rank, pep_inds, psm_vals, spec_inds, pep_dataset, spec_charges, cols, out_pin_dir)
+        postprocess.write_to_pin(rank, pep_inds, psm_vals, spec_inds, pep_dataset, spec_charges, out_pin_dir)
 
 
 def run_atles_search(rank, world_size, config_path):
+    setup(rank, world_size)
     config.init_config(config_path)
     pep_dir = config.get_config(key="pep_dir", section="search")
     pep_index_name = PurePath(pep_dir).name
@@ -291,11 +262,12 @@ def run_atles_search(rank, world_size, config_path):
     out_pin_dir = join(os.getcwd(), "percolator", pep_index_name + "-unfiltered-" + spectra)
 
     print("Running unfiltered ooc search on {}.".format(pep_index_name))
-    setup(rank, world_size)
     with torch.no_grad():
         snap_model = get_snap_model(rank)
+        dist.barrier()
         file_names = None
         if not os.path.exists(index_path):
+            dist.barrier()
             if rank == 0:
                 create_directories(index_path)
                 chunkify_peptides(index_path)
@@ -317,6 +289,7 @@ def run_atles_search(rank, world_size, config_path):
         dist.barrier()
         search_database(rank, spec_filt_dict, spec_charges, index_path, out_pin_dir)
         print("Search time: {}".format(time.time() - l_time))
+        postprocess.post_process_pin_files(rank, out_pin_dir)
         print("Total time: {}".format(time.time() - t_time))
 
 

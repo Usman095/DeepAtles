@@ -30,7 +30,6 @@ if __name__ == "__main__":
     start_time = time.time()
 
     spectra_path = config.get_config(key="prep_path", section="search")
-    print("Parameters: {}".format(config.get_config(key="len_tol_pos", section="filter")))
     print("Spectra path: {}".format(spectra_path))
 
     length_filter = config.get_config(key="length_filter", section="filter")

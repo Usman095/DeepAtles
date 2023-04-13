@@ -2,9 +2,45 @@ import os
 from os.path import join
 import pandas as pd
 
-import torch
-
 from src.atlesconfig import config
+
+
+def post_process_pin_files(rank, pin_dir_path):
+    print("Post-processing pin files at {}".format(pin_dir_path))
+    file_path = join(pin_dir_path, "target.pin" if rank == 0 else "decoy.pin")
+    df = pd.read_csv(file_path, sep='\t')
+
+    # Do anything to pin files here.
+
+    # Keep only the top PSMs
+    top_psms_df = keep_top_psms(df)
+
+    # Write back the pin files to disk
+    print("Writing pin files to disk")
+    # TODO: uncomment two lines below
+    # os.remove(file_path)
+    # top_psms_df.to_csv(file_path, index=False)
+
+    # TODO: remove the lines below
+    out_path = join(pin_dir_path, "target1.pin" if rank == 0 else "decoy1.pin")
+    top_psms_df.to_csv(out_path, index=False)
+
+
+def keep_top_psms(df):
+    keep_psms = config.get_config(section="search", key="keep_psms")
+    # Sort the dataframe by 'SpecId' and 'SNAP' in descending order
+    print('Keeping only the top {} PSMs'.format(keep_psms))
+
+    print("Size before removal: {}".format(len(df)))
+    df = df.sort_values(['SpecId', 'SNAP'], ascending=[True, False])
+
+    # Group the dataframe by 'SpecId' and keep the top 'keep_psms' rows
+    top_psms_df = df.groupby('SpecId').head(keep_psms)
+
+    # Reset the index of the filtered dataframe
+    top_psms_df.reset_index(drop=True, inplace=True)
+    print("Size after removal: {}".format(len(top_psms_df)))
+    return top_psms_df
 
 
 def generate_percolator_input(l_pep_inds, l_pep_vals, l_spec_inds, pd_dataset, spec_charges, res_type):
@@ -12,8 +48,6 @@ def generate_percolator_input(l_pep_inds, l_pep_vals, l_spec_inds, pd_dataset, s
     assert len(l_pep_inds) == len(l_pep_vals) == len(l_spec_inds)
     pin_charge = config.get_config(section="search", key="charge")
     l_global_out = []
-    tot_count = 0
-    max_snap = torch.max(l_pep_vals).item()
     for l_spec_idx, pep_inds_row, pep_vals_row in zip(l_spec_inds, l_pep_inds, l_pep_vals):
         l_spec_idx = l_spec_idx.item()
         # Reminder: pep_inds_row length is one less than pep_vals_row
@@ -25,7 +59,7 @@ def generate_percolator_input(l_pep_inds, l_pep_vals, l_spec_inds, pd_dataset, s
                 ch_idx = min(spec_charges[l_spec_idx], pin_charge)
                 charge[ch_idx - 1] = 1
                 label = 1 if res_type == "target" else -1
-                out_row = [f"{res_type}-{tot_count}", label, l_spec_idx, pep_val.item()]
+                out_row = [f"{res_type}-{l_spec_idx}", label, l_spec_idx, pep_val.item()]
                 spec_mass = spec_charges[l_spec_idx]
                 pep_mass = pd_dataset.pep_mass_list[pep_ind.item()]
                 out_row.append(spec_mass)
@@ -54,14 +88,29 @@ def generate_percolator_input(l_pep_inds, l_pep_vals, l_spec_inds, pd_dataset, s
                 out_row.append(out_pep)
                 out_row.append(out_prot)
                 l_global_out.append(out_row)
-                tot_count += 1
     return l_global_out
 
 
-def write_to_pin(rank, pep_inds, psm_vals, spec_inds, l_pep_dataset, spec_charges, cols, out_pin_dir):
+def write_to_pin(rank, pep_inds, psm_vals, spec_inds, l_pep_dataset, spec_charges, out_pin_dir):
     os.makedirs(out_pin_dir, exist_ok=True)
     if rank == 0:
         print("Generating percolator pin files...")
+    pin_charge = config.get_config(section="search", key="charge")
+    charge_cols = [f"charge-{ch+1}" for ch in range(pin_charge)]
+    cols = (
+        [
+            "SpecId",
+            "Label",
+            "ScanNr",
+            "SNAP",
+            "ExpMass",
+            "CalcMass",
+            "deltCn",
+            "deltLCn",
+        ]
+        + charge_cols
+        + ["dM", "absdM", "enzInt", "PepLen", "Peptide", "Proteins"]
+    )
     global_out = generate_percolator_input(
         pep_inds,
         psm_vals,

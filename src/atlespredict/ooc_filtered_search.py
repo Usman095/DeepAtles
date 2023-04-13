@@ -147,28 +147,14 @@ def process_peptides(rank, snap_model, index_path):
             print("Peptides done!")
 
             # save embeddings
-            print(
-                "Saving embeddings at {}".format(
-                    join(
-                        index_path,
-                        "{}".format("peptide_embeddings" if rank == 0 else "decoy_embeddings"),
-                        file_name,
-                    )
-                )
-            )
-            torch.save(
-                e_peps,
-                join(
-                    index_path,
-                    "{}".format("peptide_embeddings" if rank == 0 else "decoy_embeddings"),
-                    file_name,
-                ),
-            )
+            embedding_type = "peptide_embeddings" if rank == 0 else "decoy_embeddings"
+            embedding_path = join(index_path, embedding_type, file_name)
+            print("Saving embeddings at {}".format(embedding_path))
+            torch.save(e_peps, embedding_path)
             print("Done \n")
 
-    with open(
-        join(index_path, "{}".format("peptide_class_offsets.pkl" if rank == 0 else "decoy_class_offsets.pkl")), "wb"
-    ) as f:
+    offset_file_name = "peptide_class_offsets.pkl" if rank == 0 else "decoy_class_offsets.pkl"
+    with open(join(index_path, "{}".format(offset_file_name)), "wb") as f:
         pickle.dump(class_offsets, f)
 
 
@@ -252,23 +238,6 @@ def search_database(rank, spec_filt_dict, spec_charges, index_path, out_pin_dir)
     # Run database search for each dict item
     unfiltered_time = 0
 
-    pin_charge = config.get_config(section="search", key="charge")
-    charge_cols = [f"charge-{ch+1}" for ch in range(pin_charge)]
-    cols = (
-        [
-            "SpecId",
-            "Label",
-            "ScanNr",
-            "SNAP",
-            "ExpMass",
-            "CalcMass",
-            "deltCn",
-            "deltLCn",
-        ]
-        + charge_cols
-        + ["dM", "absdM", "enzInt", "PepLen", "Peptide", "Proteins"]
-    )
-
     print("Running filtered {} database search.".format("target" if rank == 0 else "decoy"))
     for key in spec_filt_dict:
         print("Searching for key {}.".format(key))
@@ -343,7 +312,7 @@ def search_database(rank, spec_filt_dict, spec_charges, index_path, out_pin_dir)
         print("{} PSMS: {}".format("Target" if rank == 0 else "Decoy", len(pep_inds)))
 
         # 4 - Write PSMs to pin file
-        postprocess.write_to_pin(rank, pep_inds, psm_vals, spec_inds, pep_info, spec_charges, cols, out_pin_dir)
+        postprocess.write_to_pin(rank, pep_inds, psm_vals, spec_inds, pep_info, spec_charges, out_pin_dir)
 
 
 def run_atles_search(rank, world_size, config_path):
@@ -375,6 +344,7 @@ def run_atles_search(rank, world_size, config_path):
         l_time = time.time()
         search_database(rank, spec_filt_dict, spec_charges, index_path, out_pin_dir)
         print("Search time: {}".format(time.time() - l_time))
+        postprocess.post_process_pin_files(rank, out_pin_dir)
         print("Total time: {}".format(time.time() - t_time))
 
 

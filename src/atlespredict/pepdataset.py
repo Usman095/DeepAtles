@@ -35,7 +35,7 @@ class PeptideDataset(data.Dataset):
 
         print("Loading peptides...")
         # pep_lst, prot_list, pep_mass_lst, pep_modified_lst = load_peps(self.pep_path)
-        out = load_peps(self.pep_path, fine_name)
+        out = load_peps(self.pep_path, fine_name, decoy=decoy)
 
         print("peptide list len: {}".format(len(out)))
         # print("peptide set len: {}".format(len(self.pep_lst_set)))
@@ -160,7 +160,7 @@ def add_mods(pep, mods, num_mods):
     return result_peps
 
 
-def load_peps(pep_dir, file_name=None):
+def load_peps(pep_dir, file_name=None, decoy=False):
     if file_name:
         fasta_files = [join(pep_dir, file_name)]
     else:
@@ -189,7 +189,7 @@ def load_peps(pep_dir, file_name=None):
         peps = []
         temp_prot = ""
         pbar = tqdm(lines, file=sys.stdout)
-        pbar.set_description('Loading Peptides...')
+        pbar.set_description('Loading {}'.format('Decoys...' if decoy else 'Peptides...'))
         out = []
         # with progressbar.ProgressBar(max_value=len(lines)) as bar:
         for line in pbar:
