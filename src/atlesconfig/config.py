@@ -108,7 +108,6 @@ def get_config(section=None, key=None):
 
 def get_all_config():
     """Read the configuration parameters and return a dictionary."""
-
     global config_dict
 
     # If file path is given use it otherwise use default.
@@ -130,3 +129,16 @@ def get_all_config():
                 config_dict[section_][key_] = config_[section_][key_]
 
     return config_dict
+
+
+def set_config(section, key, value):
+    """Set the value of a configuration parameter."""
+    global config_dict
+
+    if not config_dict:
+        config_dict = get_all_config()
+
+    if section not in config_dict:
+        config_dict[section] = {}
+
+    config_dict[section][key] = value

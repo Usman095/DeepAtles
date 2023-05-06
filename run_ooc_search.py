@@ -16,9 +16,12 @@ if __name__ == "__main__":
     # Adding optional argument
     parser.add_argument("-c", "--config", help="Path to the config file.")
     parser.add_argument("-p", "--preprocess", help="Preprocess data?", default="True")
+    parser.add_argument("-f", "--filter", help="Filter value to use.", choices=["all", "none", "len-1", "no-len"])
+    parser.add_argument("-d", "--pep_dir", help="Path to the peptide directory.")
 
     # Read arguments from command line
     input_params = parser.parse_args()
+    args_dict = vars(input_params)
 
     if input_params.config:
         tqdm.write("config: " + input_params.config)
@@ -36,13 +39,22 @@ if __name__ == "__main__":
     missed_cleavages_filter = config.get_config(key="missed_cleavages_filter", section="filter")
     modification_filter = config.get_config(key="modification_filter", section="filter")
 
-    if not length_filter and not missed_cleavages_filter and not modification_filter:
-        print("No filters enabled. Using unfiltered search.")
-        run_atles_search = ufs.run_atles_search
+    if "filter" in args_dict:
+        if args_dict["filter"] == "none":
+            print("No filters enabled. Using unfiltered search.")
+            run_atles_search = ufs.run_atles_search
+        else:
+            print("Filters enabled. Using filtered search.")
+            run_atles_search = fs.run_atles_search
     else:
-        print("Filters enabled. Using filtered search.")
-        run_atles_search = fs.run_atles_search
-    mp.spawn(run_atles_search, args=(2, config_path), nprocs=2, join=True)
+        if not length_filter and not missed_cleavages_filter and not modification_filter:
+            print("No filters enabled. Using unfiltered search.")
+            run_atles_search = ufs.run_atles_search
+        else:
+            print("Filters enabled. Using filtered search.")
+            run_atles_search = fs.run_atles_search
+
+    mp.spawn(run_atles_search, args=(2, config_path, args_dict), nprocs=2, join=True)
     # run_atles_search(0, 1)
     print("Total time: {}".format(time.time() - start_time))
 

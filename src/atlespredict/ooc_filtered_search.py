@@ -14,7 +14,7 @@ import torch.multiprocessing as mp
 from torch import nn
 from tqdm import tqdm
 
-from src.atlesconfig import config
+from src.atlesconfig import config, arg_parse
 from src.atlespredict import dbsearch, pepdataset, postprocess, specdataset, specollate_model
 from src.atlestrain import model
 
@@ -315,8 +315,10 @@ def search_database(rank, spec_filt_dict, spec_charges, index_path, out_pin_dir)
         postprocess.write_to_pin(rank, pep_inds, psm_vals, spec_inds, pep_info, spec_charges, out_pin_dir)
 
 
-def run_atles_search(rank, world_size, config_path):
+def run_atles_search(rank, world_size, config_path, args_dict):
+    setup(rank, world_size)
     config.init_config(config_path)
+    arg_parse.process_args_dict(args_dict)
     pep_dir = config.get_config(key="pep_dir", section="search")
     pep_index_name = PurePath(pep_dir).name
     index_path = join(config.get_config(key="index_path", section="search"), pep_index_name, "filtered")
@@ -328,9 +330,12 @@ def run_atles_search(rank, world_size, config_path):
     filt = "filt{}".format(len_tol_pos)
     out_pin_dir = join(os.getcwd(), "percolator", pep_index_name + "-" + filt + "-" + spectra)
 
+    print(f"Pep dir name {pep_dir}")
+    print(f"length filter {length_filter}")
+    print(f"len_tol_pos {len_tol_pos}")
+
     with torch.no_grad():
         print("Running filtered ooc search on {}.".format(pep_index_name))
-        setup(rank, world_size)
         snap_model = get_snap_model(rank)
         if not os.path.exists(index_path):
             if rank == 0:

@@ -14,7 +14,7 @@ import torch.multiprocessing as mp
 from torch import nn
 from tqdm import tqdm
 
-from src.atlesconfig import config
+from src.atlesconfig import config, arg_parse
 from src.atlespredict import dbsearch, pepdataset, postprocess, specdataset, specollate_model
 from src.atlesutils import utils
 
@@ -251,9 +251,10 @@ def search_database(rank, spec_filt_dict, spec_charges, index_path, out_pin_dir)
         postprocess.write_to_pin(rank, pep_inds, psm_vals, spec_inds, pep_dataset, spec_charges, out_pin_dir)
 
 
-def run_atles_search(rank, world_size, config_path):
+def run_atles_search(rank, world_size, config_path, args_dict):
     setup(rank, world_size)
     config.init_config(config_path)
+    arg_parse.process_args_dict(args_dict)
     pep_dir = config.get_config(key="pep_dir", section="search")
     pep_index_name = PurePath(pep_dir).name
     index_path = join(config.get_config(key="index_path", section="search"), pep_index_name, "unfiltered")
